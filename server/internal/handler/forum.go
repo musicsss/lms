@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -19,6 +20,7 @@ func NewForumHandler(svc *forum.Service) *ForumHandler {
 func (h *ForumHandler) ListBoards(c *gin.Context) {
 	boards, err := h.svc.ListBoards()
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "forum: list boards failed", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -46,10 +48,12 @@ func (h *ForumHandler) CreatePost(c *gin.Context) {
 
 	post, err := h.svc.CreatePost(uint(boardID), userID, input.Title, input.Content)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "forum: create post failed", "board_id", boardID, "user_id", userID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	slog.InfoContext(c.Request.Context(), "forum: post created", "post_id", post.ID, "title", input.Title, "user_id", userID)
 	c.JSON(http.StatusCreated, post)
 }
 
@@ -65,6 +69,7 @@ func (h *ForumHandler) ListPosts(c *gin.Context) {
 
 	posts, total, err := h.svc.ListPosts(uint(boardID), page, pageSize)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "forum: list posts failed", "board_id", boardID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -86,6 +91,7 @@ func (h *ForumHandler) GetPost(c *gin.Context) {
 
 	post, err := h.svc.GetPost(uint(id))
 	if err != nil {
+		slog.WarnContext(c.Request.Context(), "forum: post not found", "post_id", id, "err", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "post not found"})
 		return
 	}
@@ -113,10 +119,12 @@ func (h *ForumHandler) Reply(c *gin.Context) {
 
 	reply, err := h.svc.Reply(uint(postID), 0, userID, input.Content)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "forum: reply failed", "post_id", postID, "user_id", userID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	slog.InfoContext(c.Request.Context(), "forum: reply created", "reply_id", reply.ID, "post_id", postID, "user_id", userID)
 	c.JSON(http.StatusCreated, reply)
 }
 
@@ -130,6 +138,7 @@ func (h *ForumHandler) Like(c *gin.Context) {
 	userID := c.GetUint("userID")
 	liked, err := h.svc.ToggleLike(uint(postID), userID)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "forum: toggle like failed", "post_id", postID, "user_id", userID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

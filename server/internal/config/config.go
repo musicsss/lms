@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -11,6 +12,7 @@ type Config struct {
 	Database DatabaseConfig
 	JWT      JWTConfig
 	Storage  StorageConfig
+	Log      LogConfig
 }
 
 type ServerConfig struct {
@@ -37,6 +39,12 @@ type StorageConfig struct {
 	Root   string
 }
 
+type LogConfig struct {
+	Dir        string
+	MaxSizeMB  int
+	MaxBackups int
+}
+
 func (d DatabaseConfig) DSN() string {
 	return fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
@@ -51,6 +59,7 @@ func Load() (*Config, error) {
 	viper.AddConfigPath("./config")
 
 	viper.SetEnvPrefix("LMS")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	// defaults
@@ -66,6 +75,14 @@ func Load() (*Config, error) {
 	viper.SetDefault("jwt.expirehour", 72)
 	viper.SetDefault("storage.driver", "local")
 	viper.SetDefault("storage.root", "./data")
+	viper.SetDefault("log.dir", "./logs")
+	viper.SetDefault("log.maxsizemb", 20)
+	viper.SetDefault("log.maxbackups", 20)
+
+	// explicitly bind env vars so Unmarshal picks them up
+	for _, key := range []string{"database.host", "database.port", "database.user", "database.password", "database.dbname", "database.sslmode"} {
+		_ = viper.BindEnv(key)
+	}
 
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {

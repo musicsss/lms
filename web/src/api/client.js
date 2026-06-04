@@ -1,9 +1,10 @@
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8080/api/v1';
+const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
 
 class ApiError extends Error {
-  constructor(status, message) {
+  constructor(status, message, data) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -28,17 +29,17 @@ async function request(path, options = {}) {
     headers,
   });
 
-  if (res.status === 401) {
+  const data = await res.json().catch(() => ({}));
+
+  if (res.status === 401 && !window.location.pathname.startsWith('/login')) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     window.location.href = '/login';
-    throw new ApiError(401, 'Unauthorized');
+    throw new ApiError(401, 'Unauthorized', data);
   }
 
-  const data = await res.json();
-
   if (!res.ok) {
-    throw new ApiError(res.status, data.error || 'Request failed');
+    throw new ApiError(res.status, data.error || 'Request failed', data);
   }
 
   return data;
@@ -49,6 +50,7 @@ export const api = {
   register: (body) => request('/auth/register', { method: 'POST', body: JSON.stringify(body) }),
   login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   me: () => request('/auth/me'),
+  getCaptcha: () => request('/auth/captcha'),
 
   // Files
   listFiles: (parentId) => {

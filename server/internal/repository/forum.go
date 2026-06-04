@@ -91,3 +91,29 @@ func (r *ForumRepo) CountReplies(postID uint) (int64, error) {
 	err := r.db.Model(&model.Post{}).Where("parent_id = ?", postID).Count(&count).Error
 	return count, err
 }
+
+func (r *ForumRepo) CreateBoard(board *model.Board) error {
+	return r.db.Create(board).Error
+}
+
+func (r *ForumRepo) UpdateBoard(board *model.Board) error {
+	return r.db.Save(board).Error
+}
+
+func (r *ForumRepo) DeleteBoard(id uint) error {
+	return r.db.Delete(&model.Board{}, id).Error
+}
+
+func (r *ForumRepo) DeletePost(id uint) error {
+	return r.db.Delete(&model.Post{}, id).Error
+}
+
+func (r *ForumRepo) DeleteReplies(postID uint) error {
+	return r.db.Where("parent_id = ?", postID).Delete(&model.Post{}).Error
+}
+
+func (r *ForumRepo) CountPosts() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Post{}).Count(&count).Error
+	return count, err
+}

@@ -15,6 +15,9 @@ vendor/
 web/node_modules/
 web/dist/
 web/.vite/
+admin/node_modules/
+admin/dist/
+admin/.vite/
 
 # --- IDE ---
 .idea/
@@ -40,3 +43,8 @@ secrets/
 
 # --- Logs ---
 *.log
+*.gz
+logs/
+
+# --- Codex ---
+.codex/

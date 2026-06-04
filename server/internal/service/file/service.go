@@ -6,10 +6,12 @@ import (
 	"io"
 	"mime/multipart"
 	"path/filepath"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/lms/server/internal/model"
 	"github.com/lms/server/internal/repository"
+	"github.com/lms/server/internal/runtimecfg"
 	"github.com/lms/server/internal/storage"
 	"gorm.io/gorm"
 )
@@ -18,17 +20,35 @@ type Service struct {
 	fileRepo  *repository.FileRepo
 	shareRepo *repository.ShareRepo
 	store     storage.Driver
+	rtEngine  *runtimecfg.Engine
 }
 
-func NewService(fileRepo *repository.FileRepo, shareRepo *repository.ShareRepo, store storage.Driver) *Service {
-	return &Service{fileRepo: fileRepo, shareRepo: shareRepo, store: store}
+func NewService(fileRepo *repository.FileRepo, shareRepo *repository.ShareRepo, store storage.Driver, rtEngine *runtimecfg.Engine) *Service {
+	return &Service{fileRepo: fileRepo, shareRepo: shareRepo, store: store, rtEngine: rtEngine}
 }
 
 func (s *Service) List(userID uint, parentID *uint) ([]model.File, error) {
 	return s.fileRepo.FindByParent(userID, parentID)
 }
 
+func (s *Service) maxUploadSizeMB() int {
+	if s.rtEngine != nil {
+		if v := s.rtEngine.GetSet("FILEUPLD"); v != nil {
+			if mb, err := strconv.Atoi(v["MAXSIZE"]); err == nil && mb > 0 {
+				return mb
+			}
+		}
+	}
+	return 2048
+}
+
 func (s *Service) Upload(userID uint, parentID *uint, header *multipart.FileHeader) (*model.File, error) {
+	maxMB := s.maxUploadSizeMB()
+	maxBytes := int64(maxMB) * 1024 * 1024
+	if header.Size > maxBytes {
+		return nil, fmt.Errorf("file size exceeds limit of %d MB", maxMB)
+	}
+
 	src, err := header.Open()
 	if err != nil {
 		return nil, err

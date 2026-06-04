@@ -51,3 +51,28 @@ func (r *FileRepo) FindChildren(parentID uint) ([]model.File, error) {
 	err := r.db.Where("parent_id = ?", parentID).Find(&files).Error
 	return files, err
 }
+
+func (r *FileRepo) ListAll(offset, limit int) ([]model.File, int64, error) {
+	var files []model.File
+	var total int64
+	if err := r.db.Model(&model.File{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err := r.db.Preload("User").Order("id DESC").Offset(offset).Limit(limit).Find(&files).Error
+	return files, total, err
+}
+
+func (r *FileRepo) CountAll() (int64, error) {
+	var count int64
+	err := r.db.Model(&model.File{}).Where("is_dir = false").Count(&count).Error
+	return count, err
+}
+
+func (r *FileRepo) SumSize() (int64, error) {
+	var sum int64
+	row := r.db.Model(&model.File{}).Select("COALESCE(SUM(size), 0)").Row()
+	if err := row.Scan(&sum); err != nil {
+		return 0, err
+	}
+	return sum, nil
+}

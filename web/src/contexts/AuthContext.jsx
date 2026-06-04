@@ -12,17 +12,22 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const login = useCallback(async (username, password) => {
+  const login = useCallback(async (loginBody) => {
     setLoading(true);
     try {
-      const data = await api.login({ username, password });
+      const data = await api.login(loginBody);
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       setUser(data.user);
       navigate('/files');
       return { success: true };
     } catch (err) {
-      return { success: false, error: err.message };
+      return {
+        success: false,
+        error: err.message,
+        needCaptcha: err.data?.need_captcha || false,
+        blockedUntil: err.data?.blocked_until || null,
+      };
     } finally {
       setLoading(false);
     }

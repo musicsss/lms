@@ -2,6 +2,7 @@ package handler
 
 import (
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -33,6 +34,7 @@ func (h *FileHandler) List(c *gin.Context) {
 
 	files, err := h.svc.List(userID, parentID)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "file: list failed", "user_id", userID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -55,10 +57,12 @@ func (h *FileHandler) Mkdir(c *gin.Context) {
 
 	dir, err := h.svc.CreateDir(userID, input.ParentID, input.Name)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "file: mkdir failed", "user_id", userID, "name", input.Name, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	slog.InfoContext(c.Request.Context(), "file: directory created", "user_id", userID, "dir_id", dir.ID, "name", input.Name)
 	c.JSON(http.StatusCreated, dir)
 }
 
@@ -84,10 +88,12 @@ func (h *FileHandler) Upload(c *gin.Context) {
 
 	file, err := h.svc.Upload(userID, parentID, f)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "file: upload failed", "user_id", userID, "filename", f.Filename, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	slog.InfoContext(c.Request.Context(), "file: uploaded", "user_id", userID, "file_id", file.ID, "name", file.Name, "size", file.Size)
 	c.JSON(http.StatusCreated, file)
 }
 
@@ -100,6 +106,7 @@ func (h *FileHandler) Download(c *gin.Context) {
 
 	file, reader, err := h.svc.Download(uint(id))
 	if err != nil {
+		slog.WarnContext(c.Request.Context(), "file: download not found", "file_id", id, "err", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
 		return
 	}
@@ -120,10 +127,12 @@ func (h *FileHandler) Delete(c *gin.Context) {
 	}
 
 	if err := h.svc.Delete(uint(id)); err != nil {
+		slog.ErrorContext(c.Request.Context(), "file: delete failed", "file_id", id, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	slog.InfoContext(c.Request.Context(), "file: deleted", "file_id", id)
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
@@ -144,10 +153,12 @@ func (h *FileHandler) Share(c *gin.Context) {
 
 	share, err := h.svc.CreateShare(uint(id), input.Password, input.ExpireHours)
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "file: share failed", "file_id", id, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	slog.InfoContext(c.Request.Context(), "file: shared", "share_token", share.Token, "file_id", id)
 	c.JSON(http.StatusCreated, share)
 }
 

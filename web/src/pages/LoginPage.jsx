@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { api } from '../api/client';
 import './AuthPage.css';
 
 export default function LoginPage() {
@@ -9,12 +10,54 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [needCaptcha, setNeedCaptcha] = useState(false);
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaQuestion, setCaptchaQuestion] = useState('');
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [blockedUntil, setBlockedUntil] = useState(null);
+
+  const fetchCaptcha = async () => {
+    try {
+      const data = await api.getCaptcha();
+      setCaptchaId(data.captcha_id);
+      setCaptchaQuestion(data.question);
+      setNeedCaptcha(true);
+    } catch (e) {
+      setError('Failed to load captcha');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    const result = await login(username, password);
-    if (!result.success) setError(result.error);
+
+    if (blockedUntil && Date.now() < blockedUntil * 1000) {
+      const remaining = Math.ceil((blockedUntil * 1000 - Date.now()) / 60000);
+      setError(`Too many attempts. Please try again in ${remaining} minute(s).`);
+      return;
+    }
+
+    const loginBody = { username, password };
+    if (needCaptcha && captchaId) {
+      loginBody.captcha_id = captchaId;
+      loginBody.captcha_answer = captchaAnswer;
+    }
+
+    const result = await login(loginBody);
+    if (result.success) return;
+
+    setError(result.error);
+
+    if (result.needCaptcha) {
+      setNeedCaptcha(true);
+      if (!captchaId) fetchCaptcha();
+    }
+    if (result.blockedUntil) {
+      setBlockedUntil(result.blockedUntil);
+    }
+    if (result.needCaptcha === false) {
+      setCaptchaAnswer('');
+    }
   };
 
   return (
@@ -42,6 +85,27 @@ export default function LoginPage() {
             required
           />
         </label>
+        {needCaptcha && (
+          <>
+            <label>
+              <span>{captchaQuestion || '验证码'}</span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="text"
+                  value={captchaAnswer}
+                  onChange={(e) => setCaptchaAnswer(e.target.value)}
+                  placeholder="输入答案"
+                  required
+                  style={{ flex: 1 }}
+                />
+                <button type="button" className="btn-ghost" onClick={fetchCaptcha}
+                  style={{ whiteSpace: 'nowrap', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer' }}>
+                  刷新
+                </button>
+              </div>
+            </label>
+          </>
+        )}
         <button type="submit" disabled={loading} className="btn-primary">
           <LogIn size={16} />
           {loading ? '登录中...' : '登录'}

@@ -3,7 +3,7 @@ server:
   mode: debug
 
 database:
-  host: localhost
+  host: db
   port: 5432
   user: lms
   password: lms123
@@ -17,3 +17,8 @@ jwt:
 storage:
   driver: local
   root: ./data
+
+log:
+  dir: ./logs
+  maxsizemb: 20
+  maxbackups: 20
