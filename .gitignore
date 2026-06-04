@@ -1,0 +1,42 @@
+# --- Go ---
+server/bin/
+server/.gocache/
+server/tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# --- Node / React ---
+web/node_modules/
+web/dist/
+web/.vite/
+
+# --- IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+$RECYCLE.BIN/
+
+# --- Docker ---
+pgdata/
+data/
+
+# --- Env / Secrets ---
+.env
+.env.local
+*.pem
+secrets/
+
+# --- Logs ---
+*.log

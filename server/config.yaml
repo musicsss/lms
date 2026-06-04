@@ -1,0 +1,19 @@
+server:
+  port: 8080
+  mode: debug
+
+database:
+  host: localhost
+  port: 5432
+  user: lms
+  password: lms123
+  dbname: lms
+  sslmode: disable
+
+jwt:
+  secret: change-me-in-production
+  expirehour: 72
+
+storage:
+  driver: local
+  root: ./data

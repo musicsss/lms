@@ -1,0 +1,45 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - server
+    restart: unless-stopped
+
+  server:
+    build: ./server
+    environment:
+      - LMS_DATABASE_HOST=db
+      - LMS_DATABASE_PORT=5432
+      - LMS_DATABASE_USER=lms
+      - LMS_DATABASE_PASSWORD=lms123
+      - LMS_DATABASE_DBNAME=lms
+      - LMS_DATABASE_SSLMODE=disable
+      - LMS_JWT_SECRET=change-me-in-production
+      - LMS_STORAGE_ROOT=/data
+      - LMS_SERVER_MODE=release
+    volumes:
+      - ./data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=lms
+      - POSTGRES_PASSWORD=lms123
+      - POSTGRES_DB=lms
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lms"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
