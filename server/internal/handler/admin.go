@@ -6,20 +6,27 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/lms/server/internal/service/admin"
+	adminctx "github.com/lms/server/internal/dci/context/admin"
+	"github.com/lms/server/internal/dci/data"
+	"github.com/lms/server/internal/storage"
+	"gorm.io/gorm"
 )
 
 type AdminHandler struct {
-	svc *admin.Service
+	db        *gorm.DB
+	userRepo  data.UserRepo
+	fileRepo  data.FileRepo
+	forumRepo data.ForumRepo
+	store     storage.Driver
 }
 
-func NewAdminHandler(svc *admin.Service) *AdminHandler {
-	return &AdminHandler{svc: svc}
+func NewAdminHandler(db *gorm.DB, userRepo data.UserRepo, fileRepo data.FileRepo, forumRepo data.ForumRepo, store storage.Driver) *AdminHandler {
+	return &AdminHandler{db: db, userRepo: userRepo, fileRepo: fileRepo, forumRepo: forumRepo, store: store}
 }
 
-// GET /api/v1/admin/stats
 func (h *AdminHandler) Stats(c *gin.Context) {
-	stats, err := h.svc.GetStats()
+	ctx := adminctx.NewGetStatsContext(h.db, h.userRepo, h.fileRepo, h.forumRepo)
+	stats, err := ctx.Execute()
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "admin: stats failed", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -28,13 +35,13 @@ func (h *AdminHandler) Stats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
-// GET /api/v1/admin/users
 func (h *AdminHandler) ListUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 	search := c.Query("search")
 
-	users, total, err := h.svc.ListUsers(page, pageSize, search)
+	ctx := adminctx.NewListUsersContext(h.db, h.userRepo, page, pageSize, search)
+	users, total, err := ctx.Execute()
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "admin: list users failed", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -49,7 +56,6 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 	})
 }
 
-// PUT /api/v1/admin/users/:id
 func (h *AdminHandler) UpdateUser(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -65,17 +71,17 @@ func (h *AdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.UpdateUserRole(uint(id), input.Role); err != nil {
-		slog.ErrorContext(c.Request.Context(), "admin: update user failed", "user_id", id, "err", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	ctx := adminctx.NewUpdateUserRoleContext(h.db, h.userRepo, uint(id), input.Role)
+	if err := ctx.Execute(); err != nil {
+		slog.ErrorContext(c.Request.Context(), "admin: update user role failed", "user_id", id, "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	slog.InfoContext(c.Request.Context(), "admin: user role updated", "user_id", id, "role", input.Role)
-	c.JSON(http.StatusOK, gin.H{"message": "role updated"})
+	c.JSON(http.StatusOK, gin.H{"message": "updated"})
 }
 
-// DELETE /api/v1/admin/users/:id
 func (h *AdminHandler) DeleteUser(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -83,22 +89,23 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.DeleteUser(uint(id)); err != nil {
+	ctx := adminctx.NewDeleteUserContext(h.db, h.userRepo, uint(id))
+	if err := ctx.Execute(); err != nil {
 		slog.ErrorContext(c.Request.Context(), "admin: delete user failed", "user_id", id, "err", err)
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	slog.InfoContext(c.Request.Context(), "admin: user deleted", "user_id", id)
-	c.JSON(http.StatusOK, gin.H{"message": "user deleted"})
+	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
-// GET /api/v1/admin/files
 func (h *AdminHandler) ListFiles(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
-	files, total, err := h.svc.ListFiles(page, pageSize)
+	ctx := adminctx.NewListFilesContext(h.db, h.fileRepo, page, pageSize)
+	files, total, err := ctx.Execute()
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "admin: list files failed", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -113,7 +120,6 @@ func (h *AdminHandler) ListFiles(c *gin.Context) {
 	})
 }
 
-// DELETE /api/v1/admin/files/:id
 func (h *AdminHandler) DeleteFile(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -121,7 +127,8 @@ func (h *AdminHandler) DeleteFile(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.DeleteFile(uint(id)); err != nil {
+	ctx := adminctx.NewDeleteFileContext(h.db, h.fileRepo, h.store, uint(id))
+	if err := ctx.Execute(); err != nil {
 		slog.ErrorContext(c.Request.Context(), "admin: delete file failed", "file_id", id, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -131,17 +138,17 @@ func (h *AdminHandler) DeleteFile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
-// GET /api/v1/admin/boards
 func (h *AdminHandler) ListBoards(c *gin.Context) {
-	boards, err := h.svc.ListBoards()
+	ctx := adminctx.NewListBoardsContext(h.db, h.forumRepo)
+	boards, err := ctx.Execute()
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "admin: list boards failed", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"boards": boards})
 }
 
-// POST /api/v1/admin/boards
 func (h *AdminHandler) CreateBoard(c *gin.Context) {
 	var input struct {
 		Name        string `json:"name" binding:"required"`
@@ -154,7 +161,8 @@ func (h *AdminHandler) CreateBoard(c *gin.Context) {
 		return
 	}
 
-	board, err := h.svc.CreateBoard(input.Name, input.Slug, input.Description, input.SortOrder)
+	ctx := adminctx.NewCreateBoardContext(h.db, h.forumRepo, input.Name, input.Slug, input.Description, input.SortOrder)
+	board, err := ctx.Execute()
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "admin: create board failed", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -165,7 +173,6 @@ func (h *AdminHandler) CreateBoard(c *gin.Context) {
 	c.JSON(http.StatusCreated, board)
 }
 
-// PUT /api/v1/admin/boards/:id
 func (h *AdminHandler) UpdateBoard(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -177,11 +184,20 @@ func (h *AdminHandler) UpdateBoard(c *gin.Context) {
 		Name        string `json:"name"`
 		Slug        string `json:"slug"`
 		Description string `json:"description"`
-		SortOrder   int    `json:"sort_order"`
+		SortOrder   *int   `json:"sort_order"`
 	}
-	c.ShouldBindJSON(&input)
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-	board, err := h.svc.UpdateBoard(uint(id), input.Name, input.Slug, input.Description, input.SortOrder)
+	sortOrder := 0
+	if input.SortOrder != nil {
+		sortOrder = *input.SortOrder
+	}
+
+	ctx := adminctx.NewUpdateBoardContext(h.db, h.forumRepo, uint(id), input.Name, input.Slug, input.Description, sortOrder)
+	board, err := ctx.Execute()
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "admin: update board failed", "board_id", id, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -191,7 +207,6 @@ func (h *AdminHandler) UpdateBoard(c *gin.Context) {
 	c.JSON(http.StatusOK, board)
 }
 
-// DELETE /api/v1/admin/boards/:id
 func (h *AdminHandler) DeleteBoard(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -199,34 +214,16 @@ func (h *AdminHandler) DeleteBoard(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.DeleteBoard(uint(id)); err != nil {
+	ctx := adminctx.NewDeleteBoardContext(h.db, h.forumRepo, uint(id))
+	if err := ctx.Execute(); err != nil {
 		slog.ErrorContext(c.Request.Context(), "admin: delete board failed", "board_id", id, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "board deleted"})
+	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
-// DELETE /api/v1/admin/posts/:id
-func (h *AdminHandler) DeletePost(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
-		return
-	}
-
-	if err := h.svc.DeletePostAdmin(uint(id)); err != nil {
-		slog.ErrorContext(c.Request.Context(), "admin: delete post failed", "post_id", id, "err", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	slog.InfoContext(c.Request.Context(), "admin: post deleted", "post_id", id)
-	c.JSON(http.StatusOK, gin.H{"message": "post deleted"})
-}
-
-// GET /api/v1/admin/boards/:id/posts
 func (h *AdminHandler) ListPosts(c *gin.Context) {
 	boardID, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -235,10 +232,12 @@ func (h *AdminHandler) ListPosts(c *gin.Context) {
 	}
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
 
-	posts, total, err := h.svc.ListPosts(uint(boardID), page, pageSize)
+	ctx := adminctx.NewListPostsContext(h.db, h.forumRepo, uint(boardID), page, pageSize)
+	posts, total, err := ctx.Execute()
 	if err != nil {
+		slog.ErrorContext(c.Request.Context(), "admin: list posts failed", "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -249,4 +248,21 @@ func (h *AdminHandler) ListPosts(c *gin.Context) {
 		"page":      page,
 		"page_size": pageSize,
 	})
+}
+
+func (h *AdminHandler) DeletePost(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+
+	ctx := adminctx.NewDeletePostContext(h.db, h.forumRepo, uint(id))
+	if err := ctx.Execute(); err != nil {
+		slog.ErrorContext(c.Request.Context(), "admin: delete post failed", "post_id", id, "err", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }

@@ -4,6 +4,15 @@ import (
 	"time"
 )
 
+// 视频转码状态常量
+const (
+	VideoStatusNone       = "none"       // 非视频文件
+	VideoStatusPending    = "pending"    // 等待转码
+	VideoStatusProcessing = "processing" // 转码中
+	VideoStatusDone       = "done"       // 转码完成
+	VideoStatusFailed     = "failed"     // 转码失败
+)
+
 type File struct {
 	ID          uint      `gorm:"primaryKey" json:"id"`
 	UserID      uint      `gorm:"index;not null" json:"user_id"`

@@ -48,3 +48,6 @@ logs/
 
 # --- Codex ---
 .codex/
+.gocache/
+lms-build-output.tmp
+server/internal/handler/config.go.orig

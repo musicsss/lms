@@ -8,22 +8,31 @@ import (
 	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/lms/server/internal/middleware"
 	"gopkg.in/natefinch/lumberjack.v2"
+)
+
+// 日志等级字符串常量
+const (
+	LevelDebug = "DEBUG"
+	LevelInfo  = "INFO"
+	LevelWarn  = "WARN"
+	LevelError = "ERROR"
 )
 
 const loggerKey = "logger"
 
 var (
-	globalLogger   *slog.Logger
-	globalLevel    = new(slog.LevelVar)
-	globalLevelMu  sync.RWMutex
+	globalLogger  *slog.Logger
+	globalLevel   = new(slog.LevelVar)
+	globalLevelMu sync.RWMutex
 )
 
 func init() {
 	globalLevel.Set(slog.LevelInfo)
 }
 
-// Config controls log output.
+// Config 日志配置
 type Config struct {
 	Mode       string
 	LogDir     string
@@ -31,7 +40,7 @@ type Config struct {
 	MaxBackups int
 }
 
-// New creates a slog.Logger.
+// New 创建 slog.Logger，debug=Text release=JSON，双写 stdout + 日志文件。
 func New(cfg Config) *slog.Logger {
 	var writers []io.Writer
 	writers = append(writers, os.Stdout)
@@ -49,10 +58,7 @@ func New(cfg Config) *slog.Logger {
 	}
 
 	writer := io.MultiWriter(writers...)
-
-	opts := &slog.HandlerOptions{
-		Level: globalLevel,
-	}
+	opts := &slog.HandlerOptions{Level: globalLevel}
 
 	var handler slog.Handler
 	if cfg.Mode == "debug" {
@@ -65,27 +71,26 @@ func New(cfg Config) *slog.Logger {
 	return globalLogger
 }
 
-// SetLevel changes the global log level at runtime.
+// SetLevel 运行时切换日志等级。
 func SetLevel(level string) {
 	globalLevelMu.Lock()
 	defer globalLevelMu.Unlock()
 	switch level {
-	case "DEBUG":
+	case LevelDebug:
 		globalLevel.Set(slog.LevelDebug)
-	case "INFO":
+	case LevelInfo:
 		globalLevel.Set(slog.LevelInfo)
-	case "WARN":
+	case LevelWarn:
 		globalLevel.Set(slog.LevelWarn)
-	case "ERROR":
+	case LevelError:
 		globalLevel.Set(slog.LevelError)
 	}
 }
 
-// Middleware injects logger into gin.Context and logs every request.
+// Middleware 注入 logger 并记录每个请求。
 func Middleware(logger *slog.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set(loggerKey, logger)
-
 		c.Next()
 
 		status := c.Writer.Status()
@@ -98,7 +103,7 @@ func Middleware(logger *slog.Logger) gin.HandlerFunc {
 		if q := c.Request.URL.RawQuery; q != "" {
 			attrs = append(attrs, slog.String("query", q))
 		}
-		if userID, ok := c.Get("userID"); ok {
+		if userID, ok := c.Get(middleware.CtxKeyUserID); ok {
 			attrs = append(attrs, slog.Any("user_id", userID))
 		}
 
@@ -113,7 +118,7 @@ func Middleware(logger *slog.Logger) gin.HandlerFunc {
 	}
 }
 
-// FromContext extracts the logger from gin context.
+// FromContext 从 gin.Context 提取 logger。
 func FromContext(c *gin.Context) *slog.Logger {
 	if logger, ok := c.Get(loggerKey); ok {
 		return logger.(*slog.Logger)

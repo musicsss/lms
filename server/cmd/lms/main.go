@@ -122,10 +122,10 @@ func runSetupAdmin() {
 func ensureAdmin(db *gorm.DB, username, password string) {
 	var existing model.User
 	if err := db.Where("username = ?", username).First(&existing).Error; err == nil {
-		if existing.Role == "admin" {
+		if existing.Role == model.RoleAdmin {
 			return
 		}
-		db.Model(&existing).Update("role", "admin")
+		db.Model(&existing).Update("role", model.RoleAdmin)
 		return
 	}
 
@@ -138,7 +138,7 @@ func ensureAdmin(db *gorm.DB, username, password string) {
 	user := &model.User{
 		Username:     username,
 		PasswordHash: string(hash),
-		Role:         "admin",
+		Role:         model.RoleAdmin,
 	}
 	if err := db.Create(user).Error; err != nil {
 		fmt.Fprintf(os.Stderr, "create admin: %v\n", err)

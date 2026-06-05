@@ -7,19 +7,28 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/lms/server/internal/service/file"
+	filectx "github.com/lms/server/internal/dci/context/file"
+	"github.com/lms/server/internal/dci/data"
+	"github.com/lms/server/internal/middleware"
+	"github.com/lms/server/internal/runtimecfg"
+	"github.com/lms/server/internal/storage"
+	"gorm.io/gorm"
 )
 
 type FileHandler struct {
-	svc *file.Service
+	db        *gorm.DB
+	fileRepo  data.FileRepo
+	shareRepo data.ShareRepo
+	store     storage.Driver
+	rtEngine  *runtimecfg.Engine
 }
 
-func NewFileHandler(svc *file.Service) *FileHandler {
-	return &FileHandler{svc: svc}
+func NewFileHandler(db *gorm.DB, fileRepo data.FileRepo, shareRepo data.ShareRepo, store storage.Driver, rtEngine *runtimecfg.Engine) *FileHandler {
+	return &FileHandler{db: db, fileRepo: fileRepo, shareRepo: shareRepo, store: store, rtEngine: rtEngine}
 }
 
 func (h *FileHandler) List(c *gin.Context) {
-	userID := c.GetUint("userID")
+	userID := c.GetUint(middleware.CtxKeyUserID)
 
 	var parentID *uint
 	if pidStr := c.Query("parent_id"); pidStr != "" {
@@ -32,7 +41,8 @@ func (h *FileHandler) List(c *gin.Context) {
 		parentID = &pidUint
 	}
 
-	files, err := h.svc.List(userID, parentID)
+	ctx := filectx.NewListContext(h.db, h.fileRepo, userID, parentID)
+	files, err := ctx.Execute()
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "file: list failed", "user_id", userID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -42,20 +52,19 @@ func (h *FileHandler) List(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"files": files})
 }
 
-type mkdirInput struct {
-	Name     string `json:"name" binding:"required"`
-	ParentID *uint  `json:"parent_id"`
-}
-
 func (h *FileHandler) Mkdir(c *gin.Context) {
-	userID := c.GetUint("userID")
-	var input mkdirInput
+	userID := c.GetUint(middleware.CtxKeyUserID)
+	var input struct {
+		Name     string `json:"name" binding:"required"`
+		ParentID *uint  `json:"parent_id"`
+	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	dir, err := h.svc.CreateDir(userID, input.ParentID, input.Name)
+	ctx := filectx.NewMkdirContext(h.db, h.fileRepo, userID, input.ParentID, input.Name)
+	dir, err := ctx.Execute()
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "file: mkdir failed", "user_id", userID, "name", input.Name, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -67,7 +76,7 @@ func (h *FileHandler) Mkdir(c *gin.Context) {
 }
 
 func (h *FileHandler) Upload(c *gin.Context) {
-	userID := c.GetUint("userID")
+	userID := c.GetUint(middleware.CtxKeyUserID)
 
 	f, err := c.FormFile("file")
 	if err != nil {
@@ -86,7 +95,8 @@ func (h *FileHandler) Upload(c *gin.Context) {
 		parentID = &pidUint
 	}
 
-	file, err := h.svc.Upload(userID, parentID, f)
+	ctx := filectx.NewUploadContext(h.db, h.fileRepo, h.store, h.rtEngine, userID, parentID, f)
+	file, err := ctx.Execute()
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "file: upload failed", "user_id", userID, "filename", f.Filename, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -104,7 +114,8 @@ func (h *FileHandler) Download(c *gin.Context) {
 		return
 	}
 
-	file, reader, err := h.svc.Download(uint(id))
+	ctx := filectx.NewDownloadContext(h.db, h.fileRepo, h.store, uint(id))
+	file, reader, err := ctx.Execute()
 	if err != nil {
 		slog.WarnContext(c.Request.Context(), "file: download not found", "file_id", id, "err", err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
@@ -126,7 +137,8 @@ func (h *FileHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.svc.Delete(uint(id)); err != nil {
+	ctx := filectx.NewDeleteContext(h.db, h.fileRepo, h.store, uint(id))
+	if err := ctx.Execute(); err != nil {
 		slog.ErrorContext(c.Request.Context(), "file: delete failed", "file_id", id, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -136,11 +148,6 @@ func (h *FileHandler) Delete(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
 
-type shareInput struct {
-	Password    string `json:"password"`
-	ExpireHours int    `json:"expire_hours"`
-}
-
 func (h *FileHandler) Share(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -148,10 +155,14 @@ func (h *FileHandler) Share(c *gin.Context) {
 		return
 	}
 
-	var input shareInput
+	var input struct {
+		Password    string `json:"password"`
+		ExpireHours int    `json:"expire_hours"`
+	}
 	c.ShouldBindJSON(&input)
 
-	share, err := h.svc.CreateShare(uint(id), input.Password, input.ExpireHours)
+	ctx := filectx.NewShareContext(h.db, h.fileRepo, h.shareRepo, uint(id), input.Password, input.ExpireHours)
+	share, err := ctx.Execute()
 	if err != nil {
 		slog.ErrorContext(c.Request.Context(), "file: share failed", "file_id", id, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -164,7 +175,8 @@ func (h *FileHandler) Share(c *gin.Context) {
 
 func (h *FileHandler) GetShare(c *gin.Context) {
 	token := c.Param("token")
-	share, err := h.svc.GetShare(token)
+	ctx := filectx.NewGetShareContext(h.db, h.shareRepo, token)
+	share, err := ctx.Execute()
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "share not found"})
 		return

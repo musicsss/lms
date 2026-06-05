@@ -4,6 +4,12 @@ import (
 	"time"
 )
 
+// 用户角色常量
+const (
+	RoleAdmin = "admin" // 管理员
+	RoleUser  = "user"  // 普通用户
+)
+
 type User struct {
 	ID           uint      `gorm:"primaryKey" json:"id"`
 	Username     string    `gorm:"uniqueIndex;size:64;not null" json:"username"`

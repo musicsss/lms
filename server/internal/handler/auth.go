@@ -6,40 +6,61 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	authctx "github.com/lms/server/internal/dci/context/auth"
+	"github.com/lms/server/internal/dci/data"
 	"github.com/lms/server/internal/loginprotect"
-	"github.com/lms/server/internal/service/auth"
+	"github.com/lms/server/internal/middleware"
+	"github.com/lms/server/internal/runtimecfg"
+	"github.com/lms/server/internal/config"
+	"gorm.io/gorm"
 )
 
+// AuthHandler 处理认证相关的 HTTP 请求（注册、登录、验证码）。
 type AuthHandler struct {
-	svc   *auth.Service
-	guard *loginprotect.Guard
+	db       *gorm.DB
+	userRepo data.UserRepo
+	cfg      *config.Config
+	rtEngine *runtimecfg.Engine
+	guard    *loginprotect.Guard
 }
 
-func NewAuthHandler(svc *auth.Service, guard *loginprotect.Guard) *AuthHandler {
-	return &AuthHandler{svc: svc, guard: guard}
+func NewAuthHandler(db *gorm.DB, userRepo data.UserRepo, cfg *config.Config, rtEngine *runtimecfg.Engine, guard *loginprotect.Guard) *AuthHandler {
+	return &AuthHandler{db: db, userRepo: userRepo, cfg: cfg, rtEngine: rtEngine, guard: guard}
 }
 
+// Register 处理 POST /api/v1/auth/register
 func (h *AuthHandler) Register(c *gin.Context) {
-	var input auth.RegisterInput
+	var input struct {
+		Username string `json:"username" binding:"required,min=2,max=64"`
+		Password string `json:"password" binding:"required,min=6,max=128"`
+		Email    string `json:"email"`
+	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		slog.WarnContext(c.Request.Context(), "auth: register bad input", "err", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	resp, err := h.svc.Register(input)
+	ctx := authctx.NewRegisterContext(h.db, h.userRepo, h.cfg, h.rtEngine, input.Username, input.Password, input.Email)
+	user, token, err := ctx.Execute()
 	if err != nil {
 		slog.WarnContext(c.Request.Context(), "auth: register failed", "username", input.Username, "err", err)
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		return
 	}
 
-	slog.InfoContext(c.Request.Context(), "auth: user registered", "user_id", resp.User.ID, "username", resp.User.Username)
-	c.JSON(http.StatusCreated, resp)
+	slog.InfoContext(c.Request.Context(), "auth: user registered", "user_id", user.ID, "username", user.Username)
+	c.JSON(http.StatusCreated, gin.H{"token": token, "user": user})
 }
 
+// Login 处理 POST /api/v1/auth/login
 func (h *AuthHandler) Login(c *gin.Context) {
-	var input auth.LoginInput
+	var input struct {
+		Username      string `json:"username" binding:"required"`
+		Password      string `json:"password" binding:"required"`
+		CaptchaID     string `json:"captcha_id"`
+		CaptchaAnswer string `json:"captcha_answer"`
+	}
 	if err := c.ShouldBindJSON(&input); err != nil {
 		slog.WarnContext(c.Request.Context(), "auth: login bad input", "err", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -50,17 +71,18 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	action, blockUntil := h.guard.Check(ip, input.Username)
 	switch action {
-	case "blocked":
+	case loginprotect.ActionBlocked:
 		slog.WarnContext(c.Request.Context(), "auth: login blocked", "ip", ip, "until", blockUntil)
 		c.JSON(http.StatusTooManyRequests, gin.H{
-			"error":         auth.ErrBlocked.Error(),
+			"error":         authctx.ErrBlocked.Error(),
 			"blocked_until": blockUntil.Unix(),
 		})
 		return
-	case "captcha":
+
+	case loginprotect.ActionCaptcha:
 		if input.CaptchaID == "" || input.CaptchaAnswer == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error":        auth.ErrCaptchaRequired.Error(),
+				"error":        authctx.ErrCaptchaRequired.Error(),
 				"need_captcha": true,
 			})
 			return
@@ -69,23 +91,24 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			h.guard.RecordFailure(ip, input.Username)
 			slog.WarnContext(c.Request.Context(), "auth: invalid captcha", "ip", ip)
 			c.JSON(http.StatusUnauthorized, gin.H{
-				"error":        auth.ErrCaptchaInvalid.Error(),
+				"error":        authctx.ErrCaptchaInvalid.Error(),
 				"need_captcha": true,
 			})
 			return
 		}
 	}
 
-	resp, err := h.svc.Login(input)
+	ctx := authctx.NewLoginContext(h.db, h.userRepo, h.cfg, h.rtEngine, input.Username, input.Password)
+	user, token, err := ctx.Execute()
 	if err != nil {
 		h.guard.RecordFailure(ip, input.Username)
 
-		if errors.Is(err, auth.ErrInvalidCredentials) {
+		if errors.Is(err, authctx.ErrInvalidCredentials) {
 			action2, _ := h.guard.Check(ip, input.Username)
 			slog.WarnContext(c.Request.Context(), "auth: login failed", "username", input.Username, "ip", ip)
-			if action2 == "captcha" {
+			if action2 == loginprotect.ActionCaptcha {
 				c.JSON(http.StatusUnauthorized, gin.H{
-					"error":        auth.ErrInvalidCredentials.Error(),
+					"error":        authctx.ErrInvalidCredentials.Error(),
 					"need_captcha": true,
 				})
 				return
@@ -100,8 +123,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	h.guard.RecordSuccess(ip, input.Username)
-	slog.InfoContext(c.Request.Context(), "auth: user logged in", "user_id", resp.User.ID, "username", resp.User.Username)
-	c.JSON(http.StatusOK, resp)
+	slog.InfoContext(c.Request.Context(), "auth: user logged in", "user_id", user.ID, "username", user.Username)
+	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
 }
 
 func (h *AuthHandler) Captcha(c *gin.Context) {
@@ -113,7 +136,7 @@ func (h *AuthHandler) Captcha(c *gin.Context) {
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
-	userID := c.GetUint("userID")
-	role := c.GetString("role")
+	userID := c.GetUint(middleware.CtxKeyUserID)
+	role := c.GetString(middleware.CtxKeyRole)
 	c.JSON(http.StatusOK, gin.H{"user_id": userID, "role": role})
 }

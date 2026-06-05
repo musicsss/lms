@@ -44,6 +44,12 @@ export const api = {
   login: (body) => request('/auth/login', { method: 'POST', body: JSON.stringify(body) }),
   getCaptcha: () => request('/auth/captcha'),
 
+  // generic methods for low-level access
+  get: (path) => request(path),
+  post: (path, body) => request(path, { method: 'POST', body: JSON.stringify(body) }),
+  put: (path, body) => request(path, { method: 'PUT', body: JSON.stringify(body) }),
+  del: (path) => request(path, { method: 'DELETE' }),
+
   stats: () => request('/admin/stats'),
 
   listUsers: (page = 1, search = '') =>

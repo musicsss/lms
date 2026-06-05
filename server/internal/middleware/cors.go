@@ -10,12 +10,23 @@ import (
 	"github.com/lms/server/internal/runtimecfg"
 )
 
+// CORS 预检缓存时长
+const corsMaxAge = 12 * time.Hour
+
+// 开发环境允许的来源 (无需运行时配置)
+var staticOrigins = []string{
+	"http://localhost:5173",
+	"http://localhost:3000",
+	"http://localhost:8081",
+}
+
 var (
-	staticOrigins  = []string{"http://localhost:5173", "http://localhost:3000", "http://localhost:8081"}
 	dynamicOrigins []string
 	originsMu      sync.RWMutex
 )
 
+// CORS 返回一个支持动态白名单的 CORS 中间件。
+// 静态来源 (localhost 开发端口) 始终放行；动态来源由运行时配置 ADD CORS 注入。
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		originsMu.RLock()
@@ -29,12 +40,12 @@ func CORS() gin.HandlerFunc {
 			AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 			ExposeHeaders:    []string{"Content-Length", "Content-Disposition"},
 			AllowCredentials: true,
-			MaxAge:           12 * time.Hour,
+			MaxAge:           corsMaxAge,
 		})(c)
 	}
 }
 
-// UpdateCORSOrigins updates the dynamic CORS allowlist from runtime config.
+// UpdateCORSOrigins 从运行时配置中提取 CORS 白名单并更新动态来源列表。
 func UpdateCORSOrigins(rows []runtimecfg.RuntimeConfig) {
 	originsMu.Lock()
 	defer originsMu.Unlock()
@@ -43,7 +54,7 @@ func UpdateCORSOrigins(rows []runtimecfg.RuntimeConfig) {
 	for _, r := range rows {
 		var attrs map[string]string
 		json.Unmarshal([]byte(r.AttrsJSON), &attrs)
-		if origin := attrs["ORIGIN"]; origin != "" {
+		if origin := attrs[runtimecfg.FieldOrigin]; origin != "" {
 			dynamicOrigins = append(dynamicOrigins, origin)
 		}
 	}

@@ -5,16 +5,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/lms/server/internal/config"
+	"github.com/lms/server/internal/dci/data"
 	"github.com/lms/server/internal/handler"
 	lmslog "github.com/lms/server/internal/log"
 	"github.com/lms/server/internal/loginprotect"
 	"github.com/lms/server/internal/middleware"
-	"github.com/lms/server/internal/repository"
 	"github.com/lms/server/internal/runtimecfg"
-	"github.com/lms/server/internal/service/admin"
-	"github.com/lms/server/internal/service/auth"
-	"github.com/lms/server/internal/service/file"
-	"github.com/lms/server/internal/service/forum"
 	"github.com/lms/server/internal/storage"
 	"gorm.io/gorm"
 )
@@ -40,46 +36,39 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 	// wire runtime config into modules
 	rtEngine.OnChange(func(target string) {
 		switch target {
-		case "SYSLOG":
-			if v := rtEngine.GetSet("SYSLOG"); v != nil {
+		case runtimecfg.TargetSyslog:
+			if v := rtEngine.GetSet(runtimecfg.TargetSyslog); v != nil {
 				lmslog.SetLevel(v["LEVEL"])
 			}
-		case "LGFAILFIBPLCY":
-			guard.ApplyPolicies(rtEngine.GetAdds("LGFAILFIBPLCY"))
-		case "CORS":
-			middleware.UpdateCORSOrigins(rtEngine.GetAdds("CORS"))
+		case runtimecfg.TargetLoginFail:
+			guard.ApplyPolicies(rtEngine.GetAdds(runtimecfg.TargetLoginFail))
+		case runtimecfg.TargetCORS:
+			middleware.UpdateCORSOrigins(rtEngine.GetAdds(runtimecfg.TargetCORS))
 		case "CLRLIMIT":
 			guard.ClearAll()
-		case "RELOAD":
-			// handled by engine.Reload
 		}
 	})
 
 	// apply initial config
-	if v := rtEngine.GetSet("SYSLOG"); v != nil {
+	if v := rtEngine.GetSet(runtimecfg.TargetSyslog); v != nil {
 		lmslog.SetLevel(v["LEVEL"])
 	}
-	guard.ApplyPolicies(rtEngine.GetAdds("LGFAILFIBPLCY"))
-	middleware.UpdateCORSOrigins(rtEngine.GetAdds("CORS"))
+	guard.ApplyPolicies(rtEngine.GetAdds(runtimecfg.TargetLoginFail))
+	middleware.UpdateCORSOrigins(rtEngine.GetAdds(runtimecfg.TargetCORS))
 
-	// repos
-	userRepo := repository.NewUserRepo(db)
-	fileRepo := repository.NewFileRepo(db)
-	shareRepo := repository.NewShareRepo(db)
-	forumRepo := repository.NewForumRepo(db)
+	// DCI data layer: repositories
+	userRepo := data.NewUserRepo(db)
+	fileRepo := data.NewFileRepo(db)
+	shareRepo := data.NewShareRepo(db)
+	forumRepo := data.NewForumRepo(db)
 
-	// services
-	authSvc := auth.NewService(userRepo, cfg, rtEngine)
-	fileSvc := file.NewService(fileRepo, shareRepo, store, rtEngine)
-	forumSvc := forum.NewService(forumRepo)
-	adminSvc := admin.NewService(userRepo, fileRepo, forumRepo, store)
-
-	// handlers
-	authH := handler.NewAuthHandler(authSvc, guard)
-	fileH := handler.NewFileHandler(fileSvc)
-	forumH := handler.NewForumHandler(forumSvc)
-	adminH := handler.NewAdminHandler(adminSvc)
+	// handlers (domain wiring via DCI contexts)
+	authH := handler.NewAuthHandler(db, userRepo, cfg, rtEngine, guard)
+	fileH := handler.NewFileHandler(db, fileRepo, shareRepo, store, rtEngine)
+	forumH := handler.NewForumHandler(db, forumRepo)
+	adminH := handler.NewAdminHandler(db, userRepo, fileRepo, forumRepo, store)
 	configH := handler.NewConfigHandler(rtEngine)
+	dbH := handler.NewDBHandler(db)
 
 	// public routes
 	api := r.Group("/api/v1")
@@ -139,6 +128,13 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 
 		adminGroup.POST("/config/exec", configH.Exec)
 		adminGroup.GET("/config/targets", configH.Targets)
+
+		adminGroup.GET("/db/tables", dbH.ListTables)
+		adminGroup.GET("/db/tables/:name", dbH.GetTableSchema)
+		adminGroup.GET("/db/tables/:name/rows", dbH.ListRows)
+		adminGroup.POST("/db/tables/:name", dbH.CreateRow)
+		adminGroup.PUT("/db/tables/:name/:id", dbH.UpdateRow)
+		adminGroup.DELETE("/db/tables/:name/:id", dbH.DeleteRow)
 	}
 
 	return r

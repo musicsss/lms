@@ -5,6 +5,7 @@ import UsersPage from './pages/UsersPage'
 import FilesPage from './pages/FilesPage'
 import ForumPage from './pages/ForumPage'
 import ConfigPage from './pages/ConfigPage'
+import DBManagerPage from './pages/DBManager'
 import AdminLayout from './components/AdminLayout'
 
 function ProtectedRoute({ children }) {
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="files" element={<FilesPage />} />
           <Route path="forum" element={<ForumPage />} />
           <Route path="config" element={<ConfigPage />} />
+          <Route path="db" element={<DBManagerPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

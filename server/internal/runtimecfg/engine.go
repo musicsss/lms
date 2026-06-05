@@ -32,9 +32,9 @@ func (e *Engine) Start() error {
 
 	// ensure defaults for SET configs
 	defaults := map[string]map[string]string{
-		"SYSLOG":   {"LEVEL": "INFO"},
-		"JWT":      {"EXPIRETIME": "72"},
-		"FILEUPLD": {"MAXSIZE": "2048"},
+		TargetSyslog:   {FieldLevel: "INFO"},
+		TargetJWT:      {FieldExpireTime: "72"},
+		TargetFileUpl: {FieldMaxSize: "2048"},
 	}
 	for target, attrs := range defaults {
 		if !e.store.HasSet(target) {
@@ -88,9 +88,9 @@ func (e *Engine) Exec(cmd string) *ExecResult {
 	switch verb {
 	case "ACT":
 		return e.execAct(rest)
-	case "SET":
+	case KindSet:
 		return e.execSet(rest)
-	case "ADD":
+	case KindAdd:
 		return e.execAdd(rest)
 	case "LST":
 		return e.execLst(rest)
@@ -116,7 +116,7 @@ func (e *Engine) execAct(rest string) *ExecResult {
 			return &ExecResult{OK: false, Error: err.Error()}
 		}
 		e.cache.Load(rows)
-		for target := range map[string]bool{"SYSLOG": true, "JWT": true, "FILEUPLD": true, "LGFAILFIBPLCY": true, "CORS": true} {
+		for _, target := range AllTargets() {
 			e.notify(target)
 		}
 		return &ExecResult{OK: true, Output: "config reloaded"}
@@ -130,12 +130,15 @@ func (e *Engine) execSet(rest string) *ExecResult {
 	if err != nil {
 		return &ExecResult{OK: false, Error: err.Error()}
 	}
+	if len(attrs) == 0 {
+		return &ExecResult{OK: false, Error: "SET requires at least one KEY=VALUE pair"}
+	}
 	if err := e.store.UpsertSet(target, attrs); err != nil {
 		return &ExecResult{OK: false, Error: err.Error()}
 	}
 
 	raw, _ := json.Marshal(attrs)
-	e.cache.put(RuntimeConfig{Target: target, Kind: "set", AttrsJSON: string(raw)})
+	e.cache.put(RuntimeConfig{Target: target, Kind: KindSet, AttrsJSON: string(raw)})
 	e.notify(target)
 	return &ExecResult{OK: true, Output: fmt.Sprintf("SET %s updated", target)}
 }
@@ -145,12 +148,15 @@ func (e *Engine) execAdd(rest string) *ExecResult {
 	if err != nil {
 		return &ExecResult{OK: false, Error: err.Error()}
 	}
+	if len(attrs) == 0 {
+		return &ExecResult{OK: false, Error: "ADD requires at least one KEY=VALUE pair"}
+	}
 	id, err := e.store.CreateAdd(target, attrs)
 	if err != nil {
 		return &ExecResult{OK: false, Error: err.Error()}
 	}
 	raw, _ := json.Marshal(attrs)
-	e.cache.put(RuntimeConfig{ID: id, Target: target, Kind: "add", AttrsJSON: string(raw)})
+	e.cache.put(RuntimeConfig{ID: id, Target: target, Kind: KindAdd, AttrsJSON: string(raw)})
 	e.notify(target)
 	return &ExecResult{OK: true, Output: fmt.Sprintf("ADD %s created, ID=%d", target, id)}
 }
@@ -185,7 +191,7 @@ func (e *Engine) execLst(rest string) *ExecResult {
 		rows = e.cache.GetAdds(targetPart)
 		if set := e.cache.GetSet(targetPart); set != nil {
 			raw, _ := json.Marshal(set)
-			rows = append(rows, RuntimeConfig{Target: targetPart, Kind: "set", AttrsJSON: string(raw)})
+			rows = append(rows, RuntimeConfig{Target: targetPart, Kind: KindSet, AttrsJSON: string(raw)})
 		}
 	}
 
@@ -197,7 +203,7 @@ func (e *Engine) execLst(rest string) *ExecResult {
 	for _, r := range rows {
 		var attrs map[string]string
 		json.Unmarshal([]byte(r.AttrsJSON), &attrs)
-		if r.Kind == "set" {
+		if r.Kind == KindSet {
 			sb.WriteString(fmt.Sprintf("[SET] %s:", r.Target))
 		} else {
 			sb.WriteString(fmt.Sprintf("[ADD] ID=%d %s:", r.ID, r.Target))
@@ -230,11 +236,14 @@ func (e *Engine) execMod(rest string) *ExecResult {
 	}
 	delete(attrs, "ID")
 
-	if err := e.store.UpdateAdd(uint(id), attrs); err != nil {
+	if len(attrs) == 0 {
+		return &ExecResult{OK: false, Error: "MOD requires at least one KEY=VALUE pair beyond ID"}
+	}
+	if err := e.store.UpdateAdd(target, uint(id), attrs); err != nil {
 		return &ExecResult{OK: false, Error: err.Error()}
 	}
 	raw, _ := json.Marshal(attrs)
-	e.cache.put(RuntimeConfig{ID: uint(id), Target: target, Kind: "add", AttrsJSON: string(raw)})
+	e.cache.put(RuntimeConfig{ID: uint(id), Target: target, Kind: KindAdd, AttrsJSON: string(raw)})
 	e.notify(target)
 	return &ExecResult{OK: true, Output: fmt.Sprintf("MOD %s ID=%d updated", target, id)}
 }
@@ -294,11 +303,18 @@ func splitAttrs(s string) []string {
 	for _, ch := range s {
 		switch ch {
 		case ':':
-			inValue = true
+			if inValue {
+				// second colon: treat preceding comma-reset portion as part of value
+			} else {
+				inValue = true
+			}
 			current.WriteRune(ch)
 		case ',':
 			if inValue {
-				current.WriteRune(ch)
+				// comma ends the colon-delimited value segment
+				result = append(result, current.String())
+				current.Reset()
+				inValue = false
 			} else {
 				result = append(result, current.String())
 				current.Reset()
@@ -334,3 +350,4 @@ type ExecResult struct {
 func SystemRestart() {
 	os.Exit(0)
 }
+

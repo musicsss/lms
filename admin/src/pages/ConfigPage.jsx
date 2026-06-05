@@ -66,7 +66,7 @@ export default function ConfigPage() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [selectedIdx, setSelectedIdx] = useState(-1)
   const [confirmAction, setConfirmAction] = useState(null)
-  const [formMode, setFormMode] = useState(null) // null | 'set' | 'add' | 'mod' | 'lst' | 'rmv'
+  const [formMode, setFormMode] = useState(null)
   const [formTarget, setFormTarget] = useState(null)
   const [formValues, setFormValues] = useState({})
   const [modId, setModId] = useState(null)
@@ -91,20 +91,16 @@ export default function ConfigPage() {
     const upper = input.toUpperCase().trim()
     const all = buildCommandList(d)
 
-    // priority: prefix match first, then partial
     const prefix = all.filter(c => c.text.startsWith(upper)).slice(0, 6)
     if (prefix.length > 0) return prefix
 
-    // fallback: suggest verbs if typing the first token
     const tokens = upper.split(/\s+/)
     if (tokens.length <= 2) {
       const last = tokens[tokens.length - 1]
       const prefix2 = tokens.length > 1 ? tokens.slice(0, -1).join(' ') + ' ' : ''
-      // suggest verbs
       const verbs = ['SET', 'ADD', 'LST', 'MOD', 'RMV', 'ACT']
         .filter(v => v.startsWith(last) && v !== last)
       if (verbs.length > 0) return verbs.map(v => ({ text: prefix2 + v, verb: v }))
-      // suggest targets/actions
       if (tokens.length === 2) {
         const verb = tokens[0]
         if (['SET', 'ADD', 'LST', 'MOD', 'RMV'].includes(verb)) {
@@ -179,12 +175,17 @@ export default function ConfigPage() {
       executeLst(target)
     } else if (verb === 'SET' && t.kind === 'set') {
       setFormMode('set')
-      setFormValues({ ...(t.value || {}) })
+      const vals = { ...(t.value || {}) }
+      setFormValues(vals)
+      setModId(null)
+      // rebuild command with current values
+      const parts = Object.entries(vals).filter(([,v]) => v).map(([k,v]) => `${k}=${v}`)
+      setCommand(`SET ${target}: ${parts.join(', ')}`)
     } else if (verb === 'ADD' && t.kind === 'add') {
       setFormMode('add')
       const defs = {}
       for (const f of (t.fields || [])) {
-        defs[f.key] = f.type === 'select' ? (f.options?.[0] || '') : (t.value?.[f.key] || '')
+        defs[f.key] = f.type === 'select' ? (f.options?.[0] || '') : ''
       }
       setFormValues(defs)
       setModId(null)
@@ -229,7 +230,7 @@ export default function ConfigPage() {
     if (kind === 'set') {
       const t = findTarget(data, target)
       const fields = t?.value
-        ? Object.entries(t.value).map(([k, v]) => `${k}=${v}`).join(', ')
+        ? Object.entries(t.value).filter(([,v]) => v).map(([k, v]) => `${k}=${v}`).join(', ')
         : ''
       cmd = `SET ${target}: ${fields}`
     } else {
@@ -262,13 +263,25 @@ export default function ConfigPage() {
     }
     cmd += ' ' + parts.join(', ')
     setCommand(cmd)
+    return cmd
   }
 
   // ---- execute ----
 
   const handleExec = async () => {
     if (!command.trim()) return
-    const cmd = command.trim()
+
+    let cmd = command.trim()
+
+    // validate: SET/ADD/MOD require at least one KEY=VALUE pair
+    if (formMode && formMode !== 'lst' && formMode !== 'rmv') {
+      const hasField = Object.values(formValues).some(v => v !== undefined && v !== '')
+      if (!hasField) {
+        setResult({ ok: false, error: 'Please fill at least one field' })
+        return
+      }
+      cmd = rebuildCommand(formValues) || cmd
+    }
 
     // Check for confirm actions
     const actMatch = cmd.match(/^ACT\s+(\S+)/i)
@@ -291,7 +304,6 @@ export default function ConfigPage() {
       setResult(r)
       if (r.ok) {
         await fetchData()
-        // refresh LST if showing
         if (formMode === 'lst' && formTarget) {
           executeLst(formTarget)
         } else {
@@ -318,8 +330,8 @@ export default function ConfigPage() {
   const getRangeExtra = () => {
     if (formTarget !== 'LGFAILFIBPLCY') return null
     const range = (formValues['RANGE'] || '').split(':')[0]
-    if (range === 'SINGLE_USER') return { key: 'RANGE_VAL', label: '用户名', type: 'text', placeholder: 'testuser' }
-    if (range === 'IP') return { key: 'RANGE_VAL', label: 'IP 地址', type: 'text', placeholder: '192.168.1.1' }
+    if (range === 'SINGLE_USER') return { key: 'RANGE_VAL', label: 'Username', type: 'text', placeholder: 'testuser' }
+    if (range === 'IP') return { key: 'RANGE_VAL', label: 'IP Address', type: 'text', placeholder: '192.168.1.1' }
     return null
   }
 
@@ -347,11 +359,11 @@ export default function ConfigPage() {
       )}
 
       <div className="page-header">
-        <h1>运行时配置</h1>
+        <h1>Runtime Config</h1>
       </div>
 
       <div style={{ display: 'flex', gap: 20, minHeight: 'calc(100vh - 180px)' }}>
-        {/* Left panel — command reference */}
+        {/* Left panel */}
         <div style={{ width: 260, flexShrink: 0 }}>
           <div className="card" style={{ padding: 12 }}>
             {data.categories.map(cat => (
@@ -387,14 +399,13 @@ export default function ConfigPage() {
               </div>
             ))}
 
-            {/* Actions */}
             <div style={{ marginTop: 12 }}>
               <div style={{
                 fontWeight: 600, fontSize: 13, padding: '8px 4px',
                 borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)',
                 display: 'flex', alignItems: 'center', gap: 6,
               }}>
-                <Zap size={13} />系统动作
+                <Zap size={13} />Actions
               </div>
               {data.actions?.map(act => (
                 <div
@@ -442,14 +453,13 @@ export default function ConfigPage() {
                 onKeyDown={handleKeyDown}
                 onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true) }}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                placeholder="输入命令，如 LST SYSLOG 或 SET JWT: EXPIRETIME=96"
+                placeholder="e.g. LST SYSLOG or SET JWT: EXPIRETIME=96"
                 spellCheck={false}
                 autoComplete="off"
                 style={{
                   flex: 1, background: 'transparent', border: 'none', outline: 'none',
                   color: '#e2e8f0', fontFamily: 'monospace', fontSize: 14,
                   padding: '12px 4px',
-                  '::placeholder': { color: '#64748b' },
                 }}
               />
               <button
@@ -462,11 +472,10 @@ export default function ConfigPage() {
                 }}
               >
                 <Play size={14} />
-                {loading ? '...' : '执行'}
+                {loading ? '...' : 'Exec'}
               </button>
             </div>
 
-            {/* Autocomplete dropdown */}
             {showSuggestions && suggestions.length > 0 && (
               <div
                 ref={listRef}
@@ -500,7 +509,7 @@ export default function ConfigPage() {
             )}
           </div>
 
-          {/* Form panel — shown when mode is active */}
+          {/* Form panel */}
           {formMode && formMode !== 'lst' && t && (
             <div className="card">
               <div style={{
@@ -515,11 +524,9 @@ export default function ConfigPage() {
                   </span>
                   <span style={{ fontWeight: 600, fontSize: 14 }}>{t.label}</span>
                 </div>
-                {formMode === 'mod' && (
-                  <button className="btn btn-sm btn-ghost" onClick={() => {
-                    setFormMode(null); setFormTarget(null); setFormValues({}); setCommand('')
-                  }}>取消</button>
-                )}
+                <button className="btn btn-sm btn-ghost" onClick={() => {
+                  setFormMode(null); setFormTarget(null); setFormValues({}); setCommand('')
+                }}>Cancel</button>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -565,7 +572,6 @@ export default function ConfigPage() {
                   </div>
                 ))}
 
-                {/* Range extra field */}
                 {getRangeExtra() && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                     <label style={{ width: 130, fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>
@@ -593,18 +599,7 @@ export default function ConfigPage() {
 
                 {formMode === 'rmv' && (
                   <div style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 8 }}>
-                    此操作将删除该配置项，不可撤销。
-                  </div>
-                )}
-
-                {formMode !== 'rmv' && formMode !== 'add' && formMode !== 'mod' && (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="btn btn-primary" onClick={handleExec} disabled={loading}>
-                      <Play size={14} />执行
-                    </button>
-                    <button className="btn btn-ghost" onClick={() => {
-                      setFormMode(null); setFormTarget(null); setFormValues({}); setCommand('')
-                    }}>取消</button>
+                    This will delete the config entry. This action cannot be undone.
                   </div>
                 )}
               </div>
@@ -645,7 +640,7 @@ export default function ConfigPage() {
                   color: result.ok ? 'var(--success)' : 'var(--danger)',
                   fontWeight: 600, fontSize: 13,
                 }}>
-                  {result.ok ? '✓ 成功' : '✗ 错误'}
+                  {result.ok ? 'Success' : 'Error'}
                 </span>
               </div>
               <pre style={{
@@ -664,7 +659,7 @@ export default function ConfigPage() {
               color: 'var(--text-muted)', fontSize: 14, flexDirection: 'column', gap: 8,
             }}>
               <Terminal size={32} style={{ opacity: 0.3 }} />
-              <div>输入命令或从左侧选择配置项</div>
+              <div>Type a command or select from the left panel</div>
               <div style={{ fontSize: 12, opacity: 0.6 }}>
                 SET · ADD · LST · MOD · RMV · ACT
               </div>

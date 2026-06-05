@@ -35,7 +35,7 @@ func (c *Cache) GetSet(target string) map[string]string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	for _, r := range c.byTarget[target] {
-		if r.Kind == "set" {
+		if r.Kind == KindSet {
 			var m map[string]string
 			json.Unmarshal([]byte(r.AttrsJSON), &m)
 			return m
@@ -51,7 +51,7 @@ func (c *Cache) GetAdds(target string) []RuntimeConfig {
 	rows := c.byTarget[target]
 	result := make([]RuntimeConfig, 0, len(rows))
 	for _, r := range rows {
-		if r.Kind == "add" {
+		if r.Kind == KindAdd {
 			result = append(result, r)
 		}
 	}

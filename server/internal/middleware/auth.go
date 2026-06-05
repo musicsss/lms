@@ -9,6 +9,20 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// Keys stored in gin.Context for downstream handlers.
+const (
+	CtxKeyUserID = "userID" // current login user ID
+	CtxKeyRole   = "role"   // current user role (admin / user)
+)
+
+// JWT standard claim keys.
+const (
+	JWTClaimSub  = "sub"  // user ID
+	JWTClaimRole = "role" // role
+)
+
+// AuthMiddleware parses Authorization: Bearer <token> header,
+// validates JWT signature and expiry, and injects userID and role into gin.Context.
 func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -44,16 +58,16 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		userID, ok := claims["sub"].(float64)
+		userID, ok := claims[JWTClaimSub].(float64)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid user id in token"})
 			return
 		}
 
-		role, _ := claims["role"].(string)
+		role, _ := claims[JWTClaimRole].(string)
 
-		c.Set("userID", uint(userID))
-		c.Set("role", role)
+		c.Set(CtxKeyUserID, uint(userID))
+		c.Set(CtxKeyRole, role)
 		c.Next()
 	}
 }
