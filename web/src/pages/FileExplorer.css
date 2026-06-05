@@ -1,3 +1,11 @@
+﻿/* Bilibili-style white container for file explorer */
+.bili-file-card {
+  background: #ffffff;
+  border-radius: 8px;
+  margin: 16px 24px;
+  padding: 20px;
+}
+
 .file-explorer {
   max-width: 1200px;
 }
@@ -21,10 +29,10 @@
   align-items: center;
   gap: 6px;
   padding: 7px 14px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  color: var(--color-text);
+  background: #ffffff;
+  border: 1px solid #e3e5e7;
+  border-radius: 6px;
+  color: #18191c;
   font-size: 13px;
   cursor: pointer;
   transition: background 0.15s;
@@ -34,7 +42,7 @@
 
 .upload-status {
   font-size: 13px;
-  color: var(--color-primary);
+  color: #fb7299;
 }
 
 .mkdir-row {
@@ -45,14 +53,14 @@
 
 .mkdir-row input {
   padding: 7px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border: 1px solid #e3e5e7;
+  border-radius: 6px;
   outline: none;
   width: 220px;
 }
 
 .mkdir-row input:focus {
-  border-color: var(--color-primary);
+  border-color: #fb7299;
 }
 
 .share-result {
@@ -61,17 +69,17 @@
   gap: 8px;
   margin-bottom: 16px;
   padding: 10px 14px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: var(--radius);
+  background: #fff0f5;
+  border: 1px solid #fb7299;
+  border-radius: 6px;
   font-size: 13px;
 }
 
 .share-result input {
   flex: 1;
   padding: 6px 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border: 1px solid #e3e5e7;
+  border-radius: 6px;
   font-size: 12px;
   outline: none;
 }
@@ -83,7 +91,7 @@
   align-items: center;
   gap: 12px;
   padding: 80px 0;
-  color: var(--color-text-muted);
+  color: #9499a0;
 }
 
 .file-grid {
@@ -93,9 +101,9 @@
 }
 
 .file-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  background: #ffffff;
+  border: 1px solid #e3e5e7;
+  border-radius: 6px;
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -107,12 +115,12 @@
 }
 
 .file-card:hover {
-  border-color: var(--color-primary);
+  border-color: #fb7299;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .file-icon {
-  color: var(--color-text-muted);
+  color: #9499a0;
 }
 
 .file-name {
@@ -122,11 +130,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   width: 100%;
+  color: #18191c;
 }
 
 .file-meta {
   font-size: 11px;
-  color: var(--color-text-muted);
+  color: #9499a0;
 }
 
 .file-actions {
@@ -145,13 +154,76 @@
   align-items: center;
   justify-content: center;
   background: none;
-  border: 1px solid var(--color-border);
+  border: 1px solid #e3e5e7;
   border-radius: 4px;
   padding: 4px;
-  color: var(--color-text-muted);
+  color: #9499a0;
   cursor: pointer;
   transition: color 0.15s;
 }
 
-.btn-icon-sm:hover { color: var(--color-primary); }
-.btn-icon-sm.danger:hover { color: var(--color-danger); }
+.btn-icon-sm:hover { color: #fb7299; }
+.btn-icon-sm.danger:hover { color: #dc2626; }
+
+/* Upload progress overlay */
+.upload-progress-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-progress-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 32px 40px;
+  min-width: 360px;
+  max-width: 440px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+
+.upload-progress-modal h4 {
+  margin: 0 0 12px;
+  font-size: 17px;
+  font-weight: 600;
+  color: #18191c;
+}
+
+.upload-progress-filename {
+  font-size: 13px;
+  color: #9499a0;
+  margin: 0 0 20px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-progress-bar-track {
+  width: 100%;
+  height: 10px;
+  background: #e3e5e7;
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.upload-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #fb7299, #fc8bab);
+  border-radius: 5px;
+  transition: width 0.3s ease;
+  min-width: 0;
+}
+
+.upload-progress-text {
+  font-size: 24px;
+  font-weight: 700;
+  color: #fb7299;
+}

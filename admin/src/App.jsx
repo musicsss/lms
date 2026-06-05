@@ -6,6 +6,7 @@ import FilesPage from './pages/FilesPage'
 import ForumPage from './pages/ForumPage'
 import ConfigPage from './pages/ConfigPage'
 import DBManagerPage from './pages/DBManager'
+import DanmakuPage from './pages/DanmakuPage'
 import AdminLayout from './components/AdminLayout'
 
 function ProtectedRoute({ children }) {
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="users" element={<UsersPage />} />
           <Route path="files" element={<FilesPage />} />
           <Route path="forum" element={<ForumPage />} />
+          <Route path="danmaku" element={<DanmakuPage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="db" element={<DBManagerPage />} />
         </Route>

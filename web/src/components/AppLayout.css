@@ -1,111 +1,129 @@
+/* Bilibili-style top header */
 .app-layout {
-  display: flex;
-  height: 100%;
+  min-height: 100vh;
 }
 
-.sidebar {
-  width: var(--sidebar-width);
-  background: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+.bili-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: #ffffff;
+  border-bottom: 1px solid #e3e5e7;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  padding: 0 24px;
+  z-index: 100;
+}
+
+.bili-logo {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fb7299;
   flex-shrink: 0;
 }
 
-.sidebar-brand {
+.bili-nav {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 16px 20px;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--color-primary);
-  border-bottom: 1px solid var(--color-border);
+  gap: 24px;
+  margin: 0 auto;
 }
 
-.sidebar-nav {
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.bili-nav-link {
+  font-size: 15px;
+  color: #18191c;
+  text-decoration: none;
+  padding: 4px 0;
+  transition: color 0.2s;
+  position: relative;
 }
 
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius);
-  color: var(--color-text-muted);
-  font-size: 14px;
-  transition: background 0.15s, color 0.15s;
-}
-
-.nav-item:hover {
-  background: #f3f4f6;
-  color: var(--color-text);
+.bili-nav-link:hover,
+.bili-nav-link.active {
+  color: #fb7299;
   text-decoration: none;
 }
 
-.nav-item.active {
-  background: #eff6ff;
-  color: var(--color-primary);
-  font-weight: 500;
+.bili-nav-link.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #fb7299;
+  border-radius: 1px;
 }
 
-.main-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.topbar {
-  height: var(--topbar-height);
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 24px;
-  flex-shrink: 0;
-}
-
-.topbar-title {
-  font-weight: 600;
-  font-size: 16px;
-}
-
-.topbar-right {
+.bili-header-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-shrink: 0;
 }
 
-.topbar-user {
-  color: var(--color-text-muted);
-  font-size: 13px;
+.bili-user {
+  font-size: 14px;
+  color: #9499a0;
 }
 
-.btn-icon {
+.bili-logout-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 6px;
+  border: 1px solid #e3e5e7;
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: #9499a0;
+  cursor: pointer;
+  font-size: 13px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.bili-logout-btn:hover {
+  color: #fb7299;
+  border-color: #fb7299;
+}
+
+.bili-content {
+  padding-top: 56px;
+  min-height: 100vh;
+}
+
+/* User avatar in header */
+.bili-user-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  flex-shrink: 0;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+
+.bili-user-avatar:hover {
+  opacity: 0.85;
+}
+
+.bili-user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.bili-user-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #fb7299 0%, #fc8bab 100%);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--color-text-muted);
-  transition: color 0.15s, border-color 0.15s;
-}
-
-.btn-icon:hover {
-  color: var(--color-danger);
-  border-color: var(--color-danger);
-}
-
-.content {
-  flex: 1;
-  overflow: auto;
-  padding: 24px;
+  font-size: 14px;
+  font-weight: 700;
 }

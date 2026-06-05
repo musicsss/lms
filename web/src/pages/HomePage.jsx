@@ -1,24 +1,16 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Play, Clock, Eye, Film } from 'lucide-react';
+import { Play, Clock, Film } from 'lucide-react';
 import { api } from '../api/client';
 import './HomePage.css';
 
 export default function HomePage() {
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [greeting, setGreeting] = useState('');
+  const [activeTab, setActiveTab] = useState('推荐');
   const navigate = useNavigate();
 
   useEffect(() => {
-    const h = new Date().getHours();
-    if (h < 6) setGreeting('夜深了');
-    else if (h < 9) setGreeting('早上好');
-    else if (h < 12) setGreeting('上午好');
-    else if (h < 14) setGreeting('中午好');
-    else if (h < 18) setGreeting('下午好');
-    else setGreeting('晚上好');
-
     api.getRandomVideos()
       .then(data => setVideos(data.videos || []))
       .catch(console.error)
@@ -41,41 +33,45 @@ export default function HomePage() {
     return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
   };
 
+  const tabs = ['推荐', '热门', '最新'];
+
   return (
     <div className="home-page">
-      {/* Hero区域 */}
-      <section className="home-hero">
-        <div className="hero-content">
-          <h1>{greeting}，欢迎来到 LMS</h1>
-          <p>发现和分享你喜爱的视频</p>
-        </div>
-      </section>
+      {/* Category tabs */}
+      <div className="bili-tabs">
+        {tabs.map(tab => (
+          <button
+            key={tab}
+            className={'bili-tab' + (activeTab === tab ? ' active' : '')}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
 
-      {/* 视频推荐网格 */}
-      <section className="home-section">
-        <div className="section-header">
-          <Film size={20} />
-          <h2>热门推荐</h2>
-        </div>
-
+      {/* Video grid */}
+      <section className="bili-section">
         {loading ? (
-          <div className="home-loading">
-            <div className="loader">加载中...</div>
-          </div>
+          <div className="bili-loading">加载中...</div>
         ) : videos.length === 0 ? (
-          <div className="home-empty">
-            <Play size={48} />
+          <div className="bili-empty">
+            <Film size={48} />
             <p>还没有视频，快去上传吧</p>
-            <button className="btn-primary" onClick={() => navigate('/files')}>
+            <button className="bili-btn" onClick={() => navigate('/files')}>
               前往网盘上传
             </button>
           </div>
         ) : (
           <div className="video-grid">
             {videos.map(v => (
-              <div key={v.id} className="video-card" onClick={() => navigate(/video/)}>
+              <div key={v.id} className="video-card" onClick={() => navigate('/video/' + v.id)} onMouseEnter={(e) => { const vid = e.currentTarget.querySelector('.hover-video'); if (vid) { vid.currentTime = 0; vid.play().catch(() => {}); } }} onMouseLeave={(e) => { const vid = e.currentTarget.querySelector('.hover-video'); if (vid) { vid.pause(); vid.currentTime = 0; vid.style.opacity = 0; } }}>
                 <div className="video-thumb">
-                  <div className="thumb-placeholder">
+                  <video className="hover-video" muted preload="none" style={{ opacity: 0, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', objectFit: 'cover' }} onLoadedData={(e) => { if (e.target.parentElement && e.target.parentElement.matches(':hover')) { e.target.style.opacity = 1; e.target.play().catch(() => {}); } else { e.target.style.opacity = 0; } }}>
+                    <source src={api.playVideoUrl(v.id)} />
+                  </video>
+                  <img src={api.thumbnailUrl(v.id)} alt="" className="video-thumb-img" onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }} />
+                  <div className="thumb-placeholder" style={{ display: 'none' }}>
                     <Play size={32} />
                   </div>
                   <span className="video-duration">{formatDuration(v.size)}</span>
@@ -83,14 +79,8 @@ export default function HomePage() {
                 <div className="video-info">
                   <h3 className="video-title" title={v.name}>{v.name}</h3>
                   <div className="video-meta">
-                    <span className="video-meta-item">
-                      <Eye size={12} />
-                      {formatSize(v.size)}
-                    </span>
-                    <span className="video-meta-item">
-                      <Clock size={12} />
-                      {new Date(v.created_at).toLocaleDateString()}
-                    </span>
+                    <span><Clock size={12} /> {formatSize(v.size)}</span>
+                    <span>{new Date(v.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
               </div>

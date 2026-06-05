@@ -1,5 +1,5 @@
-﻿import { NavLink, Outlet } from 'react-router-dom';
-import { Home, FolderOpen, MessageSquare, LogOut, Cloud } from 'lucide-react';
+import { NavLink, Outlet } from 'react-router-dom';
+import { LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import './AppLayout.css';
 
@@ -8,39 +8,37 @@ export default function AppLayout() {
 
   return (
     <div className="app-layout">
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <Cloud size={22} />
-          <span>LMS</span>
-        </div>
-        <nav className="sidebar-nav">
-          <NavLink to="/home" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-            <Home size={18} />
-            <span>首页</span>
+      <header className="bili-header">
+        <NavLink to="/home" className="bili-logo" style={{ textDecoration: 'none' }}>LMS</NavLink>
+        <nav className="bili-nav">
+          <NavLink to="/home" className={({ isActive }) => isActive ? 'bili-nav-link active' : 'bili-nav-link'}>
+            推荐
           </NavLink>
-          <NavLink to="/files" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-            <FolderOpen size={18} />
-            <span>网盘</span>
+          <NavLink to="/files" className={({ isActive }) => isActive ? 'bili-nav-link active' : 'bili-nav-link'}>
+            网盘
           </NavLink>
-          <NavLink to="/forum" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
-            <MessageSquare size={18} />
-            <span>论坛</span>
+          <NavLink to="/forum" className={({ isActive }) => isActive ? 'bili-nav-link active' : 'bili-nav-link'}>
+            论坛
           </NavLink>
         </nav>
-      </aside>
-      <div className="main-area">
-        <header className="topbar">
-          <div className="topbar-title">LMS</div>
-          <div className="topbar-right">
-            <span className="topbar-user">{user?.username}</span>
-            <button className="btn-icon" onClick={logout} title="退出登录">
-              <LogOut size={18} />
-            </button>
-          </div>
-        </header>
-        <main className="content">
-          <Outlet />
-        </main>
+        <div className="bili-header-right">
+          <NavLink to="/user/profile" className="bili-user-avatar">
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt={user.username} className="bili-user-avatar-img" />
+            ) : (
+              <div className="bili-user-avatar-placeholder">
+                {user?.username?.charAt(0).toUpperCase() || 'U'}
+              </div>
+            )}
+          </NavLink>
+          <button className="bili-logout-btn" onClick={logout}>
+            <LogOut size={16} />
+            退出
+          </button>
+        </div>
+      </header>
+      <div className="bili-content">
+        <Outlet />
       </div>
     </div>
   );

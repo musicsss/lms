@@ -9,6 +9,7 @@ import ForumHome from './pages/ForumHome';
 import PostListPage from './pages/PostListPage';
 import PostDetailPage from './pages/PostDetailPage';
 import VideoPlayerPage from './pages/VideoPlayerPage';
+import UserProfilePage from './pages/UserProfilePage';
 import AppLayout from './components/AppLayout';
 
 function ProtectedRoute({ children }) {
@@ -36,7 +37,7 @@ export default function App() {
             <Route path="home" element={<HomePage />} />
             <Route path="files" element={<FileExplorer />} />
             <Route path="files/:folderId" element={<FileExplorer />} />
-            <Route path="video/:id" element={<VideoPlayerPage />} />
+            <Route path="video/:id" element={<VideoPlayerPage />} />            <Route path="user/profile" element={<UserProfilePage />} />            <Route path="user/:id/profile" element={<UserProfilePage />} />
             <Route path="forum" element={<ForumHome />} />
             <Route path="forum/:boardId" element={<PostListPage />} />
             <Route path="forum/:boardId/:postId" element={<PostDetailPage />} />
@@ -47,3 +48,4 @@ export default function App() {
     </BrowserRouter>
   );
 }
+

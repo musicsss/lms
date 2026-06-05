@@ -1,77 +1,46 @@
-﻿.home-page {
-  padding: 0;
+﻿/* Bilibili-style category tabs */
+.bili-tabs {
+  display: flex;
+  gap: 12px;
+  padding: 16px 24px 0;
+  position: sticky;
+  top: 0;
+  background: #f4f4f4;
+  z-index: 10;
 }
 
-/* Hero */
-.home-hero {
-  background: linear-gradient(135deg, #fb7299 0%, #f5a5c0 50%, #ff8c5a 100%);
-  margin: -16px -24px 24px -24px;
-  padding: 48px 24px;
-  text-align: center;
-  color: #fff;
+.bili-tab {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  background: #ffffff;
+  border: 1px solid #e3e5e7;
+  cursor: pointer;
+  color: #18191c;
+  transition: all 0.2s;
 }
 
-.hero-content h1 {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-
-.hero-content p {
-  font-size: 15px;
-  opacity: 0.9;
+.bili-tab:hover,
+.bili-tab.active {
+  background: #fb7299;
+  color: #ffffff;
+  border-color: #fb7299;
 }
 
 /* Section */
-.home-section {
-  max-width: 1400px;
-  margin: 0 auto;
-  padding: 0 16px;
+.bili-section {
+  padding: 16px 24px;
 }
 
-.section-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #fb7299;
-}
-
-.section-header h2 {
-  font-size: 18px;
-  font-weight: 700;
-  color: #18191c;
-}
-
-/* Loading */
-.home-loading {
-  text-align: center;
-  padding: 60px 0;
-  color: #999;
-}
-
-.home-empty {
-  text-align: center;
-  padding: 80px 0;
-  color: #999;
-}
-
-.home-empty p {
-  margin: 16px 0;
-  font-size: 15px;
-}
-
-/* Video Grid - B站风格 */
+/* Video Grid */
 .video-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .video-card {
-  background: #fff;
+  background: #ffffff;
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
@@ -85,8 +54,7 @@
 
 .video-thumb {
   position: relative;
-  aspect-ratio: 16/9;
-  background: #e8e8e8;
+  aspect-ratio: 16 / 9;
   overflow: hidden;
 }
 
@@ -109,7 +77,6 @@
   font-size: 12px;
   padding: 2px 6px;
   border-radius: 3px;
-  font-variant-numeric: tabular-nums;
 }
 
 .video-info {
@@ -118,8 +85,8 @@
 
 .video-title {
   font-size: 14px;
-  font-weight: 600;
   color: #18191c;
+  font-weight: 600;
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -129,15 +96,52 @@
 }
 
 .video-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   font-size: 12px;
-  color: #999;
+  color: #9499a0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
 }
 
-.video-meta-item {
+/* Loading & Empty states */
+.bili-loading {
+  text-align: center;
+  padding: 80px 0;
+  color: #9499a0;
+  font-size: 15px;
+}
+
+.bili-empty {
+  text-align: center;
+  padding: 80px 0;
+  color: #9499a0;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: 12px;
+}
+
+.video-thumb-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.3s;
+}
+
+.video-thumb {
+  position: relative;
+  overflow: hidden;
+}
+
+.hover-video {
+  z-index: 2;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.video-card:hover .hover-video {
+  opacity: 1 !important;
 }

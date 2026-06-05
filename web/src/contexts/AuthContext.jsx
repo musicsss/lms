@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+﻿import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 
@@ -11,6 +11,15 @@ export function AuthProvider({ children }) {
   });
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const updateUser = useCallback((updates) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      localStorage.setItem('user', JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   const login = useCallback(async (loginBody) => {
     setLoading(true);
@@ -57,7 +66,7 @@ export function AuthProvider({ children }) {
   }, [navigate]);
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

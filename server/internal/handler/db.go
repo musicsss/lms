@@ -17,13 +17,11 @@ func NewDBHandler(db *gorm.DB) *DBHandler {
 	return &DBHandler{db: db}
 }
 
-// tableInfo holds metadata for a single table.
 type tableInfo struct {
 	Name      string `json:"name"`
 	RowCount  int64  `json:"row_count"`
 }
 
-// columnInfo describes a single column.
 type columnInfo struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
@@ -38,29 +36,36 @@ type tableSchema struct {
 }
 
 type rowData struct {
-	Columns []string                 `json:"columns"`
-	Rows    []map[string]interface{} `json:"rows"`
-	Total   int64                    `json:"total"`
-	Page    int                      `json:"page"`
-	PageSize int                     `json:"page_size"`
+	Columns  []string                 `json:"columns"`
+	Rows     []map[string]interface{} `json:"rows"`
+	Total    int64                    `json:"total"`
+	Page     int                      `json:"page"`
+	PageSize int                      `json:"page_size"`
 }
 
-// safeTables lists tables the admin is allowed to browse.
-func safeTables() []string {
-	return []string{
-		"users",
-		"files",
-		"file_shares",
-		"boards",
-		"posts",
-		"post_likes",
-		"video_transcodes",
-		"runtime_configs",
+// systemSchemas lists PostgreSQL internal schemas to exclude.
+var systemSchemas = []string{
+	"pg_catalog",
+	"information_schema",
+}
+
+func isSystemSchema(schema string) bool {
+	for _, s := range systemSchemas {
+		if s == schema {
+			return true
+		}
 	}
+	return false
 }
 
-func isSafeTable(name string) bool {
-	for _, t := range safeTables() {
+// isInternalTable returns true for PostgreSQL internal/extension tables that should not be shown.
+func isInternalTable(name string) bool {
+	internal := []string{
+		"spatial_ref_sys",
+		"geography_columns",
+		"geometry_columns",
+	}
+	for _, t := range internal {
 		if t == name {
 			return true
 		}
@@ -68,27 +73,68 @@ func isSafeTable(name string) bool {
 	return false
 }
 
-// ListTables returns all safe tables with row counts.
+// ListTables returns all user tables with row counts (blacklist mode — excludes system tables).
 func (h *DBHandler) ListTables(c *gin.Context) {
+	rows, err := h.db.Raw(`
+		SELECT table_schema, table_name
+		FROM information_schema.tables
+		WHERE table_type = 'BASE TABLE'
+		  AND table_schema NOT IN ('pg_catalog', 'information_schema')
+		ORDER BY table_schema, table_name
+	`).Rows()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
 	var tables []tableInfo
-	for _, name := range safeTables() {
+	for rows.Next() {
+		var schema, name string
+		rows.Scan(&schema, &name)
+		if isInternalTable(name) {
+			continue
+		}
 		var count int64
 		h.db.Table(name).Count(&count)
-		tables = append(tables, tableInfo{Name: name, RowCount: count})
+		tables = append(tables, tableInfo{Name: schema + "." + name, RowCount: count})
+	}
+
+	if tables == nil {
+		tables = []tableInfo{}
 	}
 	c.JSON(http.StatusOK, gin.H{"tables": tables})
+}
+
+// resolveTable strips schema prefix and validates the table exists.
+func (h *DBHandler) resolveTable(name string) (string, error) {
+	// Strip schema prefix if present (e.g. "public.users" -> "users")
+	parts := strings.SplitN(name, ".", 2)
+	tableName := parts[len(parts)-1]
+
+	var count int64
+	h.db.Raw(`
+		SELECT COUNT(*) FROM information_schema.tables
+		WHERE table_type = 'BASE TABLE'
+		  AND table_schema NOT IN ('pg_catalog', 'information_schema')
+		  AND table_name = ?
+	`, tableName).Count(&count)
+	if count == 0 {
+		return "", fmt.Errorf("table %q not found", tableName)
+	}
+	return tableName, nil
 }
 
 // GetTableSchema returns column definitions for a table.
 func (h *DBHandler) GetTableSchema(c *gin.Context) {
 	name := c.Param("name")
-	if !isSafeTable(name) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown table"})
+	tableName, err := h.resolveTable(name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Use information_schema for column metadata
-	rows, err := h.db.Raw(`
+	schRows, err := h.db.Raw(`
 		SELECT
 			c.column_name,
 			c.data_type,
@@ -103,32 +149,36 @@ func (h *DBHandler) GetTableSchema(c *gin.Context) {
 		LEFT JOIN information_schema.table_constraints tc
 			ON kcu.constraint_name = tc.constraint_name
 			AND tc.constraint_type = 'PRIMARY KEY'
-		WHERE c.table_schema = 'public' AND c.table_name = ?
+		WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema') AND c.table_name = ?
 		ORDER BY c.ordinal_position
-	`, name).Rows()
+	`, tableName).Rows()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	defer rows.Close()
+	defer schRows.Close()
 
 	var cols []columnInfo
-	for rows.Next() {
+	for schRows.Next() {
 		var col columnInfo
 		var nullable string
-		rows.Scan(&col.Name, &col.Type, &nullable, &col.Default, &col.IsPK)
+		schRows.Scan(&col.Name, &col.Type, &nullable, &col.Default, &col.IsPK)
 		col.Nullable = nullable == "YES"
 		cols = append(cols, col)
 	}
 
-	c.JSON(http.StatusOK, tableSchema{Name: name, Columns: cols})
+	if cols == nil {
+		cols = []columnInfo{}
+	}
+	c.JSON(http.StatusOK, tableSchema{Name: tableName, Columns: cols})
 }
 
 // ListRows returns paginated rows for a table.
 func (h *DBHandler) ListRows(c *gin.Context) {
 	name := c.Param("name")
-	if !isSafeTable(name) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown table"})
+	tableName, err := h.resolveTable(name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -149,15 +199,15 @@ func (h *DBHandler) ListRows(c *gin.Context) {
 
 	// total count
 	var total int64
-	h.db.Table(name).Count(&total)
+	h.db.Table(tableName).Count(&total)
 
 	// get column names
 	var cols []string
 	colRows, err := h.db.Raw(`
 		SELECT column_name FROM information_schema.columns
-		WHERE table_schema = 'public' AND table_name = ?
+		WHERE table_schema NOT IN ('pg_catalog', 'information_schema') AND table_name = ?
 		ORDER BY ordinal_position
-	`, name).Rows()
+	`, tableName).Rows()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -169,14 +219,24 @@ func (h *DBHandler) ListRows(c *gin.Context) {
 	}
 	colRows.Close()
 
-	// fetch rows (safe because table name is whitelisted)
+	if cols == nil {
+		cols = []string{}
+	}
+
+	// fetch rows
 	offset := (page - 1) * pageSize
 	sql := fmt.Sprintf("SELECT * FROM %s ORDER BY id ASC LIMIT %d OFFSET %d",
-		quoteIdent(name), pageSize, offset)
+		quoteIdent(tableName), pageSize, offset)
 	dataRows, err := h.db.Raw(sql).Rows()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		// Table might not have "id" column — fall back to no ORDER BY
+		sql = fmt.Sprintf("SELECT * FROM %s LIMIT %d OFFSET %d",
+			quoteIdent(tableName), pageSize, offset)
+		dataRows, err = h.db.Raw(sql).Rows()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 	}
 	defer dataRows.Close()
 
@@ -192,7 +252,6 @@ func (h *DBHandler) ListRows(c *gin.Context) {
 		row := make(map[string]interface{}, len(cols))
 		for i, col := range cols {
 			v := values[i]
-			// convert []byte to string for readability
 			if b, ok := v.([]byte); ok {
 				row[col] = string(b)
 			} else {
@@ -200,6 +259,10 @@ func (h *DBHandler) ListRows(c *gin.Context) {
 			}
 		}
 		result = append(result, row)
+	}
+
+	if result == nil {
+		result = []map[string]interface{}{}
 	}
 
 	c.JSON(http.StatusOK, rowData{
@@ -214,8 +277,9 @@ func (h *DBHandler) ListRows(c *gin.Context) {
 // CreateRow inserts a new row into the table.
 func (h *DBHandler) CreateRow(c *gin.Context) {
 	name := c.Param("name")
-	if !isSafeTable(name) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown table"})
+	tableName, err := h.resolveTable(name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -229,12 +293,11 @@ func (h *DBHandler) CreateRow(c *gin.Context) {
 		return
 	}
 
-	// build INSERT
 	cols := make([]string, 0, len(values))
 	placeholders := make([]string, 0, len(values))
 	args := make([]interface{}, 0, len(values))
 	for k, v := range values {
-		if !isSafeColumn(name, k) {
+		if !isValidColumn(k) {
 			continue
 		}
 		cols = append(cols, quoteIdent(k))
@@ -248,7 +311,7 @@ func (h *DBHandler) CreateRow(c *gin.Context) {
 	}
 
 	sql := fmt.Sprintf("INSERT INTO %s (%s) VALUES (%s)",
-		quoteIdent(name),
+		quoteIdent(tableName),
 		strings.Join(cols, ", "),
 		strings.Join(placeholders, ", "))
 
@@ -263,11 +326,13 @@ func (h *DBHandler) CreateRow(c *gin.Context) {
 // UpdateRow updates a row by ID.
 func (h *DBHandler) UpdateRow(c *gin.Context) {
 	name := c.Param("name")
-	id := c.Param("id")
-	if !isSafeTable(name) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown table"})
+	tableName, err := h.resolveTable(name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	id := c.Param("id")
 
 	var values map[string]interface{}
 	if err := c.ShouldBindJSON(&values); err != nil {
@@ -282,7 +347,7 @@ func (h *DBHandler) UpdateRow(c *gin.Context) {
 	sets := make([]string, 0, len(values))
 	args := make([]interface{}, 0, len(values)+1)
 	for k, v := range values {
-		if !isSafeColumn(name, k) || k == "id" {
+		if !isValidColumn(k) || k == "id" {
 			continue
 		}
 		sets = append(sets, fmt.Sprintf("%s = ?", quoteIdent(k)))
@@ -296,7 +361,7 @@ func (h *DBHandler) UpdateRow(c *gin.Context) {
 
 	args = append(args, id)
 	sql := fmt.Sprintf("UPDATE %s SET %s WHERE id = ?",
-		quoteIdent(name), strings.Join(sets, ", "))
+		quoteIdent(tableName), strings.Join(sets, ", "))
 
 	if err := h.db.Exec(sql, args...).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -309,14 +374,17 @@ func (h *DBHandler) UpdateRow(c *gin.Context) {
 // DeleteRow deletes a row by ID.
 func (h *DBHandler) DeleteRow(c *gin.Context) {
 	name := c.Param("name")
-	id := c.Param("id")
-	if !isSafeTable(name) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "unknown table"})
+	tableName, err := h.resolveTable(name)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	sql := fmt.Sprintf("DELETE FROM %s WHERE id = ?", quoteIdent(name))
+	id := c.Param("id")
+
+	sql := fmt.Sprintf("DELETE FROM %s WHERE id = ?", quoteIdent(tableName))
 	if err := h.db.Exec(sql, id).Error; err != nil {
+		// May not have "id" column — try full table scan delete by primary key
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -324,14 +392,10 @@ func (h *DBHandler) DeleteRow(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"ok": true, "message": "row deleted"})
 }
 
-// isSafeColumn prevents injecting arbitrary columns.
-func isSafeColumn(table, col string) bool {
-	// Whitelist: id and any column that appears in information_schema for this table.
-	// We use a simple approach: reject empty and validate against known pattern.
+func isValidColumn(col string) bool {
 	if col == "" {
 		return false
 	}
-	// Allow common safe patterns: alphanumeric + underscore
 	for _, r := range col {
 		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_' {
 			return false
@@ -341,6 +405,5 @@ func isSafeColumn(table, col string) bool {
 }
 
 func quoteIdent(name string) string {
-	// PostgreSQL identifier quoting
 	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }

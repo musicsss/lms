@@ -1,12 +1,14 @@
-﻿package router
+package router
 
 import (
 	"log/slog"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/lms/server/internal/config"
 	"github.com/lms/server/internal/dci/data"
 	"github.com/lms/server/internal/handler"
+	"github.com/lms/server/internal/presence"
 	lmslog "github.com/lms/server/internal/log"
 	"github.com/lms/server/internal/loginprotect"
 	"github.com/lms/server/internal/middleware"
@@ -61,14 +63,29 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 	fileRepo := data.NewFileRepo(db)
 	shareRepo := data.NewShareRepo(db)
 	forumRepo := data.NewForumRepo(db)
+	videoSocialRepo := data.NewVideoSocialRepo(db)
+	danmakuRepo := data.NewDanmakuRepo(db)
+
+	// presence hub for online watcher tracking
+	presenceHub := presence.NewHub()
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			presenceHub.Cleanup(15 * time.Second)
+		}
+	}()
 
 	// handlers (domain wiring via DCI contexts)
 	authH := handler.NewAuthHandler(db, userRepo, cfg, rtEngine, guard)
-	fileH := handler.NewFileHandler(db, fileRepo, shareRepo, store, rtEngine)
+	fileH := handler.NewFileHandler(db, fileRepo, shareRepo, videoSocialRepo, store, rtEngine, presenceHub)
 	forumH := handler.NewForumHandler(db, forumRepo)
 	adminH := handler.NewAdminHandler(db, userRepo, fileRepo, forumRepo, store)
 	configH := handler.NewConfigHandler(rtEngine)
 	dbH := handler.NewDBHandler(db)
+	videoSocialH := handler.NewVideoSocialHandler(db, videoSocialRepo, fileRepo)
+	danmakuH := handler.NewDanmakuHandler(db, danmakuRepo, fileRepo)
+	userProfileH := handler.NewUserProfileHandler(db, userRepo, fileRepo, forumRepo, videoSocialRepo, store)
 
 	// public routes
 	api := r.Group("/api/v1")
@@ -81,6 +98,13 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 		}
 
 		api.GET("/share/:token", fileH.GetShare)
+		api.GET("/video-play/:id", fileH.Play)
+		api.GET("/videos/:id/thumbnail", fileH.Thumbnail)
+		api.GET("/videos/:id/info", fileH.VideoInfo)
+		api.GET("/videos/:id/comments", videoSocialH.GetComments)
+		api.GET("/videos/:id/danmaku", danmakuH.List)
+		api.GET("/files/download-by-key/*key", userProfileH.DownloadByKey)
+		api.GET("/users/:id/profile", userProfileH.GetUserProfile)
 	}
 
 	// protected routes
@@ -97,12 +121,29 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 		protected.POST("/files/:id/share", fileH.Share)
 
 		protected.GET("/videos/random", fileH.RandomVideos)
-			protected.GET("/boards", forumH.ListBoards)
+		protected.POST("/videos/:id/heartbeat", fileH.Heartbeat)
+
+		// public watchers count
+		api.GET("/videos/:id/watchers", fileH.Watchers)
+		protected.POST("/videos/:id/comments", videoSocialH.CreateComment)
+		protected.POST("/videos/:id/danmaku", danmakuH.Send)
+		protected.POST("/videos/:id/like-toggle", videoSocialH.ToggleLike)
+		protected.GET("/videos/:id/like-status", videoSocialH.GetLikeStatus)
+
+		protected.GET("/boards", forumH.ListBoards)
 		protected.GET("/boards/:id/posts", forumH.ListPosts)
 		protected.POST("/boards/:id/posts", forumH.CreatePost)
 		protected.GET("/posts/:id", forumH.GetPost)
 		protected.POST("/posts/:id/reply", forumH.Reply)
 		protected.POST("/posts/:id/like", forumH.Like)
+
+		protected.GET("/user/profile", userProfileH.GetProfile)
+		protected.PUT("/user/profile", userProfileH.UpdateProfile)
+		protected.PUT("/user/password", userProfileH.UpdatePassword)
+		protected.GET("/user/files", userProfileH.GetUserFiles)
+		protected.GET("/user/posts", userProfileH.GetUserPosts)
+		protected.GET("/user/liked-videos", userProfileH.GetUserLikedVideos)
+		protected.POST("/user/avatar", userProfileH.UploadAvatar)
 	}
 
 	// admin routes
@@ -127,6 +168,11 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 		adminGroup.GET("/boards/:id/posts", adminH.ListPosts)
 		adminGroup.DELETE("/posts/:id", adminH.DeletePost)
 
+		adminGroup.GET("/danmaku", danmakuH.AdminList)
+		adminGroup.POST("/danmaku/:id/approve", danmakuH.AdminApprove)
+		adminGroup.POST("/danmaku/:id/reject", danmakuH.AdminReject)
+		adminGroup.DELETE("/danmaku/:id", danmakuH.AdminDelete)
+
 		adminGroup.POST("/config/exec", configH.Exec)
 		adminGroup.GET("/config/targets", configH.Targets)
 
@@ -140,4 +186,3 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 
 	return r
 }
-

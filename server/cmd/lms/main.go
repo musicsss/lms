@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"bufio"
@@ -54,6 +54,9 @@ func main() {
 		&model.Board{},
 		&model.Post{},
 		&model.PostLike{},
+		&model.VideoComment{},
+		&model.VideoLike{},
+		&model.Danmaku{},
 		&model.VideoTranscode{},
 		&runtimecfg.RuntimeConfig{},
 	); err != nil {
@@ -145,3 +148,4 @@ func ensureAdmin(db *gorm.DB, username, password string) {
 		os.Exit(1)
 	}
 }
+

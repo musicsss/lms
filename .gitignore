@@ -51,3 +51,6 @@ logs/
 .gocache/
 lms-build-output.tmp
 server/internal/handler/config.go.orig
+
+# --- Agents ---
+.agents/

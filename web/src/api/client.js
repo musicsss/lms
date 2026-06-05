@@ -52,11 +52,56 @@ export const api = {
   me: () => request('/auth/me'),
   getCaptcha: () => request('/auth/captcha'),
 
+  // User Profile
+  getUserProfile: () => request('/user/profile'),
+  getPublicUserProfile: (id) => request('/users/' + id + '/profile'),
+  updateUserProfile: (data) => request('/user/profile', { method: 'PUT', body: JSON.stringify(data) }),
+  updateUserPassword: (data) => request('/user/password', { method: 'PUT', body: JSON.stringify(data) }),
+  getUserFiles: (type, page = 1) => request('/user/files?type=' + type + '&page=' + page),
+  getUserPosts: (page = 1) => request('/user/posts?page=' + page),
+  getUserLikedVideos: (page = 1) => request('/user/liked-videos?page=' + page),
+  uploadAvatar: (file) => {
+    const form = new FormData();
+    form.append('avatar', file);
+    return request('/user/avatar', { method: 'POST', body: form });
+  },
+
   // Files
   listFiles: (parentId) => {
     const params = parentId ? `?parent_id=${parentId}` : '';
     return request(`/files${params}`);
   },
+  uploadWithProgress: (file, parentId, onProgress) => {
+    return new Promise((resolve, reject) => {
+      const form = new FormData();
+      form.append('file', file);
+      if (parentId) form.append('parent_id', parentId);
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', API_BASE + '/files/upload');
+      const token = getToken();
+      if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(data);
+          } else {
+            reject(new ApiError(xhr.status, data.error || 'Upload failed', data));
+          }
+        } catch (e) {
+          reject(new Error('Invalid response'));
+        }
+      };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send(form);
+    });
+  },
+
   uploadFile: (file, parentId) => {
     const form = new FormData();
     form.append('file', file);
@@ -77,6 +122,25 @@ export const api = {
 
   // Videos
   getRandomVideos: () => request("/videos/random"),
+  getVideoInfo: (id) => request(`/videos/${id}/info`),
+  thumbnailUrl: (id) => API_BASE + '/videos/' + id + '/thumbnail',
+  playVideoUrl: (id) => `${API_BASE}/video-play/${id}`,
+  getComments: (id) => request(`/videos/${id}/comments`),
+  createComment: (id, content, parentId) => request(`/videos/${id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ content, parent_id: parentId }),
+  }),
+  getDanmaku: (id) => request(`/videos/${id}/danmaku`),
+  sendDanmaku: (id, content, timeSec, color, fontSize, dmType) => request(`/videos/${id}/danmaku`, {
+    method: 'POST',
+    body: JSON.stringify({ content, time_sec: timeSec, color, font_size: fontSize, type: dmType }),
+  }),
+  toggleVideoLike: (id) => request(`/videos/${id}/like-toggle`, { method: 'POST' }),
+  getVideoLikeStatus: (id) => request(`/videos/${id}/like-status`),
+
+  // Presence
+  videoHeartbeat: (id) => request(`/videos/${id}/heartbeat`, { method: 'POST' }),
+  videoWatchers: (id) => request(`/videos/${id}/watchers`),
 
   // Forum
   listBoards: () => request('/boards'),
@@ -92,4 +156,3 @@ export const api = {
   }),
   toggleLike: (id) => request(`/posts/${id}/like`, { method: 'POST' }),
 };
-

@@ -23,6 +23,11 @@ func NewLocalDriver(root string) (*LocalDriver, error) {
 	return &LocalDriver{root: absRoot}, nil
 }
 
+// ResolvePath returns the absolute filesystem path for a storage key.
+func (d *LocalDriver) ResolvePath(key string) string {
+	return d.resolvePath(key)
+}
+
 func (d *LocalDriver) resolvePath(key string) string {
 	return filepath.Join(d.root, key)
 }

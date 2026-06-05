@@ -1,36 +1,34 @@
-*,
-*::before,
-*::after {
+﻿*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
 :root {
-  --color-bg: #f8f9fa;
-  --color-surface: #ffffff;
-  --color-border: #e0e0e0;
-  --color-text: #1a1a2e;
-  --color-text-muted: #6b7280;
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
-  --color-danger: #dc2626;
-  --color-danger-hover: #b91c1c;
-  --radius: 6px;
-  --sidebar-width: 220px;
-  --topbar-height: 56px;
+  --bili-pink: #fb7299;
+  --bili-pink-hover: #f591b0;
+  --bili-pink-light: #fff0f5;
+  --bili-bg: #f4f4f4;
+  --bili-surface: #ffffff;
+  --bili-text: #18191c;
+  --bili-text-secondary: #9499a0;
+  --bili-border: #e3e5e7;
+  --bili-header-bg: #ffffff;
+  --bili-header-height: 56px;
+  --bili-radius: 6px;
+  --bili-radius-lg: 8px;
 }
 
 html, body, #root {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
-  color: var(--color-text);
-  background: var(--color-bg);
+  color: var(--bili-text);
+  background: var(--bili-bg);
 }
 
 a {
-  color: var(--color-primary);
+  color: var(--bili-pink);
   text-decoration: none;
 }
 a:hover { text-decoration: underline; }
@@ -44,4 +42,35 @@ button {
 input, textarea, select {
   font-family: inherit;
   font-size: inherit;
+}
+
+/* B站 common button */
+.bili-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  background: var(--bili-pink);
+  color: #fff;
+  border: none;
+  border-radius: var(--bili-radius);
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.bili-btn:hover {
+  background: var(--bili-pink-hover);
+}
+
+/* B站 common input */
+.bili-input {
+  padding: 8px 12px;
+  border: 1px solid var(--bili-border);
+  border-radius: var(--bili-radius);
+  outline: none;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+.bili-input:focus {
+  border-color: var(--bili-pink);
 }

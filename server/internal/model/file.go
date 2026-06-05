@@ -1,16 +1,15 @@
-package model
+﻿package model
 
 import (
 	"time"
 )
 
-// 视频转码状态常量
 const (
-	VideoStatusNone       = "none"       // 非视频文件
-	VideoStatusPending    = "pending"    // 等待转码
-	VideoStatusProcessing = "processing" // 转码中
-	VideoStatusDone       = "done"       // 转码完成
-	VideoStatusFailed     = "failed"     // 转码失败
+	VideoStatusNone       = "none"
+	VideoStatusPending    = "pending"
+	VideoStatusProcessing = "processing"
+	VideoStatusDone       = "done"
+	VideoStatusFailed     = "failed"
 )
 
 type File struct {
@@ -25,8 +24,13 @@ type File struct {
 	MD5         string    `gorm:"size:32" json:"md5"`
 	IsVideo     bool      `gorm:"default:false" json:"is_video"`
 	VideoStatus string    `gorm:"size:16;default:none" json:"video_status"`
+	Tags        string    `gorm:"size:1024" json:"tags"`
+	LikeCount   int64     `gorm:"default:0" json:"like_count"`
+	CommentCount int64    `gorm:"default:0" json:"comment_count"`
+	ViewCount   int64    `gorm:"default:0" json:"view_count"`
+	ThumbKey    string    `gorm:"size:512" json:"thumb_key"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 
-	User User `gorm:"foreignKey:UserID" json:"-"`
+	User User `gorm:"foreignKey:UserID" json:"user,omitempty"`
 }

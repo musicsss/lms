@@ -15,4 +15,5 @@ type Driver interface {
 	Get(ctx context.Context, key string) (io.ReadCloser, error)
 	Delete(ctx context.Context, key string) error
 	Range(ctx context.Context, key string, offset, length int64) (io.ReadCloser, error)
+	ResolvePath(key string) string
 }

@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, FolderOpen, MessageSquare, Settings, LogOut, Shield, Database } from 'lucide-react'
+import { LayoutDashboard, Users, FolderOpen, MessageSquare, Settings, LogOut, Shield, Database, MessageCircle } from 'lucide-react'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/users', label: 'Users', icon: Users },
   { path: '/files', label: 'Files', icon: FolderOpen },
   { path: '/forum', label: 'Forum', icon: MessageSquare },
+  { path: '/danmaku', label: 'Danmaku', icon: MessageCircle },
   { path: '/config', label: 'Config', icon: Settings },
   { path: '/db', label: 'Database', icon: Database },
 ]
