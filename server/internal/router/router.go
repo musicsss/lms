@@ -65,6 +65,7 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 	forumRepo := data.NewForumRepo(db)
 	videoSocialRepo := data.NewVideoSocialRepo(db)
 	danmakuRepo := data.NewDanmakuRepo(db)
+	auditRepo := data.NewAuditLogRepo(db)
 
 	// presence hub for online watcher tracking
 	presenceHub := presence.NewHub()
@@ -77,15 +78,16 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 	}()
 
 	// handlers (domain wiring via DCI contexts)
-	authH := handler.NewAuthHandler(db, userRepo, cfg, rtEngine, guard)
-	fileH := handler.NewFileHandler(db, fileRepo, shareRepo, videoSocialRepo, store, rtEngine, presenceHub)
-	forumH := handler.NewForumHandler(db, forumRepo)
-	adminH := handler.NewAdminHandler(db, userRepo, fileRepo, forumRepo, store)
+	authH := handler.NewAuthHandler(db, userRepo, cfg, rtEngine, guard, auditRepo)
+	fileH := handler.NewFileHandler(db, fileRepo, shareRepo, videoSocialRepo, store, rtEngine, presenceHub, auditRepo)
+	forumH := handler.NewForumHandler(db, forumRepo, auditRepo)
+	adminH := handler.NewAdminHandler(db, userRepo, fileRepo, forumRepo, store, auditRepo)
 	configH := handler.NewConfigHandler(rtEngine)
 	dbH := handler.NewDBHandler(db)
-	videoSocialH := handler.NewVideoSocialHandler(db, videoSocialRepo, fileRepo)
-	danmakuH := handler.NewDanmakuHandler(db, danmakuRepo, fileRepo)
-	userProfileH := handler.NewUserProfileHandler(db, userRepo, fileRepo, forumRepo, videoSocialRepo, store)
+	auditH := handler.NewAuditHandler(db, auditRepo)
+	videoSocialH := handler.NewVideoSocialHandler(db, videoSocialRepo, fileRepo, auditRepo)
+	danmakuH := handler.NewDanmakuHandler(db, danmakuRepo, fileRepo, auditRepo)
+	userProfileH := handler.NewUserProfileHandler(db, userRepo, fileRepo, forumRepo, videoSocialRepo, store, auditRepo)
 
 	// public routes
 	api := r.Group("/api/v1")
@@ -182,6 +184,11 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 		adminGroup.POST("/db/tables/:name", dbH.CreateRow)
 		adminGroup.PUT("/db/tables/:name/:id", dbH.UpdateRow)
 		adminGroup.DELETE("/db/tables/:name/:id", dbH.DeleteRow)
+
+		// Audit logs
+		adminGroup.GET("/audit", auditH.List)
+		adminGroup.GET("/audit/users/:user_id", auditH.ListByUser)
+		adminGroup.GET("/audit/meta", auditH.Severities)
 	}
 
 	return r

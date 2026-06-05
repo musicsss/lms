@@ -6,9 +6,11 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	auditctx "github.com/lms/server/internal/dci/context/audit"
 	filectx "github.com/lms/server/internal/dci/context/file"
 	"github.com/lms/server/internal/dci/data"
 	"github.com/lms/server/internal/middleware"
+	"github.com/lms/server/internal/model"
 
 	"gorm.io/gorm"
 )
@@ -17,10 +19,11 @@ type DanmakuHandler struct {
 	db          *gorm.DB
 	danmakuRepo data.DanmakuRepo
 	fileRepo    data.FileRepo
+	auditRepo   data.AuditLogRepo
 }
 
-func NewDanmakuHandler(db *gorm.DB, danmakuRepo data.DanmakuRepo, fileRepo data.FileRepo) *DanmakuHandler {
-	return &DanmakuHandler{db: db, danmakuRepo: danmakuRepo, fileRepo: fileRepo}
+func NewDanmakuHandler(db *gorm.DB, danmakuRepo data.DanmakuRepo, fileRepo data.FileRepo, auditRepo data.AuditLogRepo) *DanmakuHandler {
+	return &DanmakuHandler{db: db, danmakuRepo: danmakuRepo, fileRepo: fileRepo, auditRepo: auditRepo}
 }
 
 // Send creates a danmaku (requires auth). Body: {content, time_sec, color, font_size, type}
@@ -49,6 +52,7 @@ func (h *DanmakuHandler) Send(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	auditctx.NewRecordContext(h.db, h.auditRepo, userID, model.ActionDanmakuSend, "video", uint(id), "", c.ClientIP(), true).Execute()
 	c.JSON(http.StatusCreated, dm)
 }
 

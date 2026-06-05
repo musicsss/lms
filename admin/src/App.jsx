@@ -7,6 +7,7 @@ import ForumPage from './pages/ForumPage'
 import ConfigPage from './pages/ConfigPage'
 import DBManagerPage from './pages/DBManager'
 import DanmakuPage from './pages/DanmakuPage'
+import AuditPage from './pages/AuditPage'
 import AdminLayout from './components/AdminLayout'
 
 function ProtectedRoute({ children }) {
@@ -29,6 +30,7 @@ export default function App() {
           <Route path="danmaku" element={<DanmakuPage />} />
           <Route path="config" element={<ConfigPage />} />
           <Route path="db" element={<DBManagerPage />} />
+          <Route path="audit" element={<AuditPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

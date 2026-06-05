@@ -5,27 +5,31 @@ import (
 	"log/slog"
 	"net/http"
 
+	auditctx "github.com/lms/server/internal/dci/context/audit"
+
 	"github.com/gin-gonic/gin"
 	authctx "github.com/lms/server/internal/dci/context/auth"
 	"github.com/lms/server/internal/dci/data"
 	"github.com/lms/server/internal/loginprotect"
 	"github.com/lms/server/internal/middleware"
 	"github.com/lms/server/internal/runtimecfg"
+	"github.com/lms/server/internal/model"
 	"github.com/lms/server/internal/config"
 	"gorm.io/gorm"
 )
 
 // AuthHandler 处理认证相关的 HTTP 请求（注册、登录、验证码）。
 type AuthHandler struct {
-	db       *gorm.DB
-	userRepo data.UserRepo
-	cfg      *config.Config
-	rtEngine *runtimecfg.Engine
-	guard    *loginprotect.Guard
+	db        *gorm.DB
+	userRepo  data.UserRepo
+	cfg       *config.Config
+	rtEngine  *runtimecfg.Engine
+	guard     *loginprotect.Guard
+	auditRepo data.AuditLogRepo
 }
 
-func NewAuthHandler(db *gorm.DB, userRepo data.UserRepo, cfg *config.Config, rtEngine *runtimecfg.Engine, guard *loginprotect.Guard) *AuthHandler {
-	return &AuthHandler{db: db, userRepo: userRepo, cfg: cfg, rtEngine: rtEngine, guard: guard}
+func NewAuthHandler(db *gorm.DB, userRepo data.UserRepo, cfg *config.Config, rtEngine *runtimecfg.Engine, guard *loginprotect.Guard, auditRepo data.AuditLogRepo) *AuthHandler {
+	return &AuthHandler{db: db, userRepo: userRepo, cfg: cfg, rtEngine: rtEngine, guard: guard, auditRepo: auditRepo}
 }
 
 // Register 处理 POST /api/v1/auth/register
@@ -50,6 +54,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 
 	slog.InfoContext(c.Request.Context(), "auth: user registered", "user_id", user.ID, "username", user.Username)
+	auditctx.NewRecordContext(h.db, h.auditRepo, user.ID, model.ActionRegister, "user", user.ID, "", c.ClientIP(), true).Execute()
 	c.JSON(http.StatusCreated, gin.H{"token": token, "user": user})
 }
 
@@ -73,6 +78,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	switch action {
 	case loginprotect.ActionBlocked:
 		slog.WarnContext(c.Request.Context(), "auth: login blocked", "ip", ip, "until", blockUntil)
+		auditctx.NewRecordContext(h.db, h.auditRepo, 0, model.ActionLoginBlocked, "user", 0, "username="+input.Username+" ip="+ip, ip, false).Execute()
 		c.JSON(http.StatusTooManyRequests, gin.H{
 			"error":         authctx.ErrBlocked.Error(),
 			"blocked_until": blockUntil.Unix(),
@@ -105,6 +111,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 		if errors.Is(err, authctx.ErrInvalidCredentials) {
 			action2, _ := h.guard.Check(ip, input.Username)
+			auditctx.NewRecordContext(h.db, h.auditRepo, 0, model.ActionLoginFailed, "user", 0, "username="+input.Username, ip, false).Execute()
 			slog.WarnContext(c.Request.Context(), "auth: login failed", "username", input.Username, "ip", ip)
 			if action2 == loginprotect.ActionCaptcha {
 				c.JSON(http.StatusUnauthorized, gin.H{
@@ -124,6 +131,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	h.guard.RecordSuccess(ip, input.Username)
 	slog.InfoContext(c.Request.Context(), "auth: user logged in", "user_id", user.ID, "username", user.Username)
+	auditctx.NewRecordContext(h.db, h.auditRepo, user.ID, model.ActionLoginSuccess, "user", user.ID, "", ip, true).Execute()
 	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
 }
 

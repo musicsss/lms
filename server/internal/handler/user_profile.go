@@ -21,9 +21,10 @@ type UserProfileHandler struct {
 	forumRepo       data.ForumRepo
 	videoSocialRepo data.VideoSocialRepo
 	store           storage.Driver
+	auditRepo       data.AuditLogRepo
 }
 
-func NewUserProfileHandler(db *gorm.DB, userRepo data.UserRepo, fileRepo data.FileRepo, forumRepo data.ForumRepo, videoSocialRepo data.VideoSocialRepo, store storage.Driver) *UserProfileHandler {
+func NewUserProfileHandler(db *gorm.DB, userRepo data.UserRepo, fileRepo data.FileRepo, forumRepo data.ForumRepo, videoSocialRepo data.VideoSocialRepo, store storage.Driver, auditRepo data.AuditLogRepo) *UserProfileHandler {
 	return &UserProfileHandler{
 		db:              db,
 		userRepo:        userRepo,
@@ -31,6 +32,7 @@ func NewUserProfileHandler(db *gorm.DB, userRepo data.UserRepo, fileRepo data.Fi
 		forumRepo:       forumRepo,
 		videoSocialRepo: videoSocialRepo,
 		store:           store,
+		auditRepo:       auditRepo,
 	}
 }
 

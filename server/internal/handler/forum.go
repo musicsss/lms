@@ -6,19 +6,22 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	auditctx "github.com/lms/server/internal/dci/context/audit"
 	forumctx "github.com/lms/server/internal/dci/context/forum"
 	"github.com/lms/server/internal/dci/data"
 	"github.com/lms/server/internal/middleware"
+	"github.com/lms/server/internal/model"
 	"gorm.io/gorm"
 )
 
 type ForumHandler struct {
 	db        *gorm.DB
 	forumRepo data.ForumRepo
+	auditRepo data.AuditLogRepo
 }
 
-func NewForumHandler(db *gorm.DB, forumRepo data.ForumRepo) *ForumHandler {
-	return &ForumHandler{db: db, forumRepo: forumRepo}
+func NewForumHandler(db *gorm.DB, forumRepo data.ForumRepo, auditRepo data.AuditLogRepo) *ForumHandler {
+	return &ForumHandler{db: db, forumRepo: forumRepo, auditRepo: auditRepo}
 }
 
 func (h *ForumHandler) ListBoards(c *gin.Context) {
@@ -57,6 +60,7 @@ func (h *ForumHandler) CreatePost(c *gin.Context) {
 		return
 	}
 
+	auditctx.NewRecordContext(h.db, h.auditRepo, userID, model.ActionForumPost, "post", post.ID, input.Title, c.ClientIP(), true).Execute()
 	slog.InfoContext(c.Request.Context(), "forum: post created", "post_id", post.ID, "title", input.Title, "user_id", userID)
 	c.JSON(http.StatusCreated, post)
 }
@@ -129,6 +133,7 @@ func (h *ForumHandler) Reply(c *gin.Context) {
 		return
 	}
 
+	auditctx.NewRecordContext(h.db, h.auditRepo, userID, model.ActionForumReply, "post", uint(postID), "", c.ClientIP(), true).Execute()
 	slog.InfoContext(c.Request.Context(), "forum: reply created", "reply_id", reply.ID, "post_id", postID, "user_id", userID)
 	c.JSON(http.StatusCreated, reply)
 }
@@ -149,5 +154,6 @@ func (h *ForumHandler) Like(c *gin.Context) {
 		return
 	}
 
+	auditctx.NewRecordContext(h.db, h.auditRepo, userID, model.ActionForumLike, "post", uint(postID), "", c.ClientIP(), true).Execute()
 	c.JSON(http.StatusOK, gin.H{"liked": liked})
 }

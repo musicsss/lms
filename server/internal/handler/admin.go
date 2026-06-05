@@ -7,7 +7,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	adminctx "github.com/lms/server/internal/dci/context/admin"
+	auditctx "github.com/lms/server/internal/dci/context/audit"
 	"github.com/lms/server/internal/dci/data"
+	"github.com/lms/server/internal/middleware"
+	"github.com/lms/server/internal/model"
 	"github.com/lms/server/internal/storage"
 	"gorm.io/gorm"
 )
@@ -18,10 +21,11 @@ type AdminHandler struct {
 	fileRepo  data.FileRepo
 	forumRepo data.ForumRepo
 	store     storage.Driver
+	auditRepo data.AuditLogRepo
 }
 
-func NewAdminHandler(db *gorm.DB, userRepo data.UserRepo, fileRepo data.FileRepo, forumRepo data.ForumRepo, store storage.Driver) *AdminHandler {
-	return &AdminHandler{db: db, userRepo: userRepo, fileRepo: fileRepo, forumRepo: forumRepo, store: store}
+func NewAdminHandler(db *gorm.DB, userRepo data.UserRepo, fileRepo data.FileRepo, forumRepo data.ForumRepo, store storage.Driver, auditRepo data.AuditLogRepo) *AdminHandler {
+	return &AdminHandler{db: db, userRepo: userRepo, fileRepo: fileRepo, forumRepo: forumRepo, store: store, auditRepo: auditRepo}
 }
 
 func (h *AdminHandler) Stats(c *gin.Context) {
@@ -96,6 +100,8 @@ func (h *AdminHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
+	adminUserID := c.GetUint(middleware.CtxKeyUserID)
+	auditctx.NewRecordContext(h.db, h.auditRepo, adminUserID, model.ActionAdminDeleteUser, "user", uint(id), "", c.ClientIP(), true).Execute()
 	slog.InfoContext(c.Request.Context(), "admin: user deleted", "user_id", id)
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }
@@ -134,6 +140,8 @@ func (h *AdminHandler) DeleteFile(c *gin.Context) {
 		return
 	}
 
+	adminUserID := c.GetUint(middleware.CtxKeyUserID)
+	auditctx.NewRecordContext(h.db, h.auditRepo, adminUserID, model.ActionAdminDeleteFile, "file", uint(id), "", c.ClientIP(), true).Execute()
 	slog.InfoContext(c.Request.Context(), "admin: file deleted", "file_id", id)
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, FolderOpen, MessageSquare, Settings, LogOut, Shield, Database, MessageCircle } from 'lucide-react'
+import { LayoutDashboard, Users, FolderOpen, MessageSquare, Settings, LogOut, Shield, Database, MessageCircle, FileSearch } from 'lucide-react'
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -10,6 +10,7 @@ const navItems = [
   { path: '/danmaku', label: 'Danmaku', icon: MessageCircle },
   { path: '/config', label: 'Config', icon: Settings },
   { path: '/db', label: 'Database', icon: Database },
+  { path: '/audit', label: 'Audit', icon: FileSearch },
 ]
 
 export default function AdminLayout() {

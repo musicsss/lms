@@ -29,8 +29,8 @@ services:
       - LMS_SERVER_MODE=release
       - LMS_SETUP_ADMIN=admin:admin123
     volumes:
-      - ./data:/data
-      - ./logs:/app/logs
+      - ./.data:/data
+      - ./.logs:/app/logs
     depends_on:
       db:
         condition: service_healthy

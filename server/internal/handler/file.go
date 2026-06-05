@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	auditctx "github.com/lms/server/internal/dci/context/audit"
 	filectx "github.com/lms/server/internal/dci/context/file"
 	"github.com/lms/server/internal/dci/data"
 	"github.com/lms/server/internal/middleware"
@@ -30,10 +31,11 @@ type FileHandler struct {
 	store       storage.Driver
 	rtEngine    *runtimecfg.Engine
 	presenceHub *presence.Hub
+	auditRepo   data.AuditLogRepo
 }
 
-func NewFileHandler(db *gorm.DB, fileRepo data.FileRepo, shareRepo data.ShareRepo, videoRepo data.VideoSocialRepo, store storage.Driver, rtEngine *runtimecfg.Engine, presenceHub *presence.Hub) *FileHandler {
-	return &FileHandler{db: db, fileRepo: fileRepo, shareRepo: shareRepo, videoRepo: videoRepo, store: store, rtEngine: rtEngine, presenceHub: presenceHub}
+func NewFileHandler(db *gorm.DB, fileRepo data.FileRepo, shareRepo data.ShareRepo, videoRepo data.VideoSocialRepo, store storage.Driver, rtEngine *runtimecfg.Engine, presenceHub *presence.Hub, auditRepo data.AuditLogRepo) *FileHandler {
+	return &FileHandler{db: db, fileRepo: fileRepo, shareRepo: shareRepo, videoRepo: videoRepo, store: store, rtEngine: rtEngine, presenceHub: presenceHub, auditRepo: auditRepo}
 }
 
 func (h *FileHandler) List(c *gin.Context) {
@@ -226,6 +228,8 @@ func (h *FileHandler) Delete(c *gin.Context) {
 		return
 	}
 
+	userID := c.GetUint(middleware.CtxKeyUserID)
+	auditctx.NewRecordContext(h.db, h.auditRepo, userID, model.ActionFileDelete, "file", uint(id), "", c.ClientIP(), true).Execute()
 	slog.InfoContext(c.Request.Context(), "file: deleted", "file_id", id)
 	c.JSON(http.StatusOK, gin.H{"message": "deleted"})
 }

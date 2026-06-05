@@ -33,7 +33,7 @@ $RECYCLE.BIN/
 
 # --- Docker ---
 pgdata/
-data/
+.data/
 
 # --- Env / Secrets ---
 .env
@@ -44,7 +44,7 @@ secrets/
 # --- Logs ---
 *.log
 *.gz
-logs/
+.logs/
 
 # --- Codex ---
 .codex/

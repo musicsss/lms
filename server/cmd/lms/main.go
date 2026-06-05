@@ -1,4 +1,4 @@
-﻿package main
+package main
 
 import (
 	"bufio"
@@ -58,6 +58,7 @@ func main() {
 		&model.VideoLike{},
 		&model.Danmaku{},
 		&model.VideoTranscode{},
+		&model.AuditLog{},
 		&runtimecfg.RuntimeConfig{},
 	); err != nil {
 		logger.Error("auto migrate", "err", err)
@@ -148,4 +149,3 @@ func ensureAdmin(db *gorm.DB, username, password string) {
 		os.Exit(1)
 	}
 }
-
