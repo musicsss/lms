@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
+﻿const API_BASE = import.meta.env.VITE_API_BASE || '/api/v1';
 
 class ApiError extends Error {
   constructor(status, message, data) {
@@ -75,6 +75,9 @@ export const api = {
   }),
   getShare: (token) => request(`/share/${token}`),
 
+  // Videos
+  getRandomVideos: () => request("/videos/random"),
+
   // Forum
   listBoards: () => request('/boards'),
   listPosts: (boardId, page = 1) => request(`/boards/${boardId}/posts?page=${page}`),
@@ -89,3 +92,4 @@ export const api = {
   }),
   toggleLike: (id) => request(`/posts/${id}/like`, { method: 'POST' }),
 };
+

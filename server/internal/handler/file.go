@@ -1,4 +1,4 @@
-package handler
+﻿package handler
 
 import (
 	"io"
@@ -171,6 +171,17 @@ func (h *FileHandler) Share(c *gin.Context) {
 
 	slog.InfoContext(c.Request.Context(), "file: shared", "share_token", share.Token, "file_id", id)
 	c.JSON(http.StatusCreated, share)
+}
+
+// RandomVideos returns random video files for the homepage feed.
+func (h *FileHandler) RandomVideos(c *gin.Context) {
+	ctx := filectx.NewRandomVideosContext(h.db, h.fileRepo, 20)
+	videos, err := ctx.Execute()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"videos": videos})
 }
 
 func (h *FileHandler) GetShare(c *gin.Context) {

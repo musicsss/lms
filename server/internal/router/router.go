@@ -1,4 +1,4 @@
-package router
+﻿package router
 
 import (
 	"log/slog"
@@ -96,7 +96,8 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 		protected.DELETE("/files/:id", fileH.Delete)
 		protected.POST("/files/:id/share", fileH.Share)
 
-		protected.GET("/boards", forumH.ListBoards)
+		protected.GET("/videos/random", fileH.RandomVideos)
+			protected.GET("/boards", forumH.ListBoards)
 		protected.GET("/boards/:id/posts", forumH.ListPosts)
 		protected.POST("/boards/:id/posts", forumH.CreatePost)
 		protected.GET("/posts/:id", forumH.GetPost)
@@ -139,3 +140,4 @@ func Setup(cfg *config.Config, db *gorm.DB, store storage.Driver, logger *slog.L
 
 	return r
 }
+

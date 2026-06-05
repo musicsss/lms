@@ -1,5 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom';
-import { FolderOpen, Film, MessageSquare, LogOut, Cloud } from 'lucide-react';
+﻿import { NavLink, Outlet } from 'react-router-dom';
+import { Home, FolderOpen, MessageSquare, LogOut, Cloud } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import './AppLayout.css';
 
@@ -14,6 +14,10 @@ export default function AppLayout() {
           <span>LMS</span>
         </div>
         <nav className="sidebar-nav">
+          <NavLink to="/home" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
+            <Home size={18} />
+            <span>首页</span>
+          </NavLink>
           <NavLink to="/files" className={({ isActive }) => isActive ? 'nav-item active' : 'nav-item'}>
             <FolderOpen size={18} />
             <span>网盘</span>
